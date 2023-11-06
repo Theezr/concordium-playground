@@ -51,9 +51,8 @@ pub type ContractTokenAmount = TokenAmountU8;
 pub struct MintParams {
   /// Owner of the newly minted tokens.
   pub owner: Address,
-  /// A collection of tokens to mint.
-  #[concordium(size_length = 1)]
-  pub tokens: collections::BTreeSet<ContractTokenId>,
+  /// tokenID of token to mint
+  pub token: ContractTokenId,
 }
 
 /// The state for each address.
@@ -265,7 +264,7 @@ impl State {
     operator: &Address,
     state_builder: &mut StateBuilder,
   ) {
-    let mut owner_state = self
+    let mut owner_state: OccupiedEntry<'_, Address, AddressState, ExternStateApi> = self
       .state
       .entry(*owner)
       .or_insert_with(|| AddressState::empty(state_builder));
@@ -401,34 +400,34 @@ fn contract_mint(
 
   // Parse the parameter.
   let params: MintParams = ctx.parameter_cursor().get()?;
+  let token_id = params.token;
 
   let (state, builder) = host.state_and_builder();
 
   let minter = state.minter;
   ensure!(sender.matches_account(&minter), ContractError::Unauthorized);
 
-  for &token_id in params.tokens.iter() {
-    // Mint the token in the state.
-    state.mint(token_id, &params.owner, builder)?;
+  // Mint the token in the state.
+  state.mint(token_id, &params.owner, builder)?;
 
-    // Event for minted NFT.
-    logger.log(&Cis2Event::Mint(MintEvent {
+  // Event for minted NFT.
+  logger.log(&Cis2Event::Mint(MintEvent {
+    token_id,
+    amount: ContractTokenAmount::from(1),
+    owner: params.owner,
+  }))?;
+
+  // Metadata URL for the NFT.
+  logger.log(&Cis2Event::TokenMetadata::<_, ContractTokenAmount>(
+    TokenMetadataEvent {
       token_id,
-      amount: ContractTokenAmount::from(1),
-      owner: params.owner,
-    }))?;
-
-    // Metadata URL for the NFT.
-    logger.log(&Cis2Event::TokenMetadata::<_, ContractTokenAmount>(
-      TokenMetadataEvent {
-        token_id,
-        metadata_url: MetadataUrl {
-          url: build_token_metadata_url(&token_id),
-          hash: None,
-        },
+      metadata_url: MetadataUrl {
+        url: build_token_metadata_url(&token_id),
+        hash: None,
       },
-    ))?;
-  }
+    },
+  ))?;
+
   Ok(())
 }
 
@@ -622,7 +621,7 @@ fn contract_balance_of(
 
 /// Parameter type for the CIS-2 function `tokenMetadata` specialized to the
 /// subset of TokenIDs used by this contract.
-type ContractTokenMetadataQueryParams = TokenMetadataQueryParams<ContractTokenId>;
+pub type ContractTokenMetadataQueryParams = TokenMetadataQueryParams<ContractTokenId>;
 
 /// Get the token metadata URLs and checksums given a list of token IDs.
 ///

@@ -48,13 +48,13 @@ fn test_minting() {
   let rv: ViewState = invoke.parse_return_value().expect("ViewState return value");
   println!("rv: {:?}", rv);
 
-  assert_eq!(rv.all_tokens[..], [TOKEN_0, TOKEN_1]);
+  assert_eq!(rv.all_tokens[..], [TOKEN_0]);
   assert_eq!(
     rv.state,
     vec![(
       OWNER_ADDR,
       ViewAddressState {
-        owned_tokens: vec![TOKEN_0, TOKEN_1],
+        owned_tokens: vec![TOKEN_0],
         operators: Vec::new(),
       }
     )]
@@ -62,7 +62,6 @@ fn test_minting() {
 
   // Check that the events are logged.
   let events = update.events().flat_map(|(_addr, events)| events);
-
   let events: Vec<Cis2Event<ContractTokenId, ContractTokenAmount>> = events
     .map(|e| e.parse().expect("Deserialize event"))
     .collect();
@@ -82,20 +81,37 @@ fn test_minting() {
           hash: None,
         },
       }),
-      Cis2Event::Mint(MintEvent {
-        token_id: TokenIdU32(42),
-        amount: TokenAmountU8(1),
-        owner: OWNER_ADDR,
-      }),
-      Cis2Event::TokenMetadata(TokenMetadataEvent {
-        token_id: TokenIdU32(42),
-        metadata_url: MetadataUrl {
-          url: format!("{TOKEN_METADATA_BASE_URL}2A000000"),
-          hash: None,
-        },
-      }),
     ]
   );
+}
+
+#[concordium_test]
+fn test_contract_token_metadata() {
+  let (mut chain, contract_address) = initialize_chain_and_contract();
+  let update = mint_to_owner(&mut chain, contract_address);
+
+  let token_ids = ContractTokenMetadataQueryParams {
+    queries: vec![TOKEN_0],
+  };
+
+  // Invoke the view entrypoint and check that the tokens are owned by Alice.
+  let invoke = chain
+    .contract_invoke(
+      OWNER,
+      OWNER_ADDR,
+      Energy::from(10000),
+      UpdateContractPayload {
+        amount: Amount::zero(),
+        receive_name: OwnedReceiveName::new_unchecked("test_nft.tokenMetadata".to_string()),
+        address: contract_address,
+        message: OwnedParameter::from_serial(&token_ids).expect("tokenIds params"),
+      },
+    )
+    .expect("Invoke view");
+
+  // Check that the tokens are owned by Alice.
+  let rv: TokenMetadataQueryResponse = invoke.parse_return_value().expect("ViewState return value");
+  println!("rv: {:?}", rv);
 }
 
 /// Helper function that sets up the contract with two tokens minted to
@@ -103,7 +119,7 @@ fn test_minting() {
 fn mint_to_owner(chain: &mut Chain, contract_address: ContractAddress) -> ContractInvokeSuccess {
   let mint_params = MintParams {
     owner: OWNER_ADDR,
-    tokens: BTreeSet::from_iter(vec![TOKEN_0, TOKEN_1]),
+    token: TOKEN_0,
   };
 
   // Mint two tokens to Alice.
