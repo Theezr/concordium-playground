@@ -59,12 +59,16 @@ fn test_minting() {
       }
     )]
   );
+  assert_eq!(rv.mint_count, vec![(TokenIdU32(2), 1)]);
+  assert_eq!(rv.counter, 1);
 
   // Check that the events are logged.
   let events = update.events().flat_map(|(_addr, events)| events);
   let events: Vec<Cis2Event<ContractTokenId, ContractTokenAmount>> = events
     .map(|e| e.parse().expect("Deserialize event"))
     .collect();
+
+  // println!("events: {:?}", events);
 
   assert_eq!(
     events,
@@ -77,7 +81,7 @@ fn test_minting() {
       Cis2Event::TokenMetadata(TokenMetadataEvent {
         token_id: TokenIdU32(2),
         metadata_url: MetadataUrl {
-          url: format!("{TOKEN_METADATA_BASE_URL}02000000"),
+          url: "ipfs://test".to_string(),
           hash: None,
         },
       }),
@@ -109,9 +113,18 @@ fn test_contract_token_metadata() {
     )
     .expect("Invoke view");
 
-  // Check that the tokens are owned by Alice.
+  // Check that the tokenUri is set correctly
   let rv: TokenMetadataQueryResponse = invoke.parse_return_value().expect("ViewState return value");
-  println!("rv: {:?}", rv);
+  let TokenMetadataQueryResponse(urls) = rv;
+  println!("rv: {:?}", urls);
+
+  assert_eq!(
+    urls,
+    vec![MetadataUrl {
+      url: "ipfs://test".to_string(),
+      hash: None,
+    }]
+  );
 }
 
 /// Helper function that sets up the contract with two tokens minted to
@@ -120,6 +133,7 @@ fn mint_to_owner(chain: &mut Chain, contract_address: ContractAddress) -> Contra
   let mint_params = MintParams {
     owner: OWNER_ADDR,
     token: TOKEN_0,
+    token_uri: "ipfs://test".to_string(),
   };
 
   // Mint two tokens to Alice.

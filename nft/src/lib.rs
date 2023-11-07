@@ -26,10 +26,6 @@
 use concordium_cis2::*;
 use concordium_std::*;
 
-/// The baseurl for the token metadata, gets appended with the token ID as hex
-/// encoding before emitted in the TokenMetadata event.
-pub const TOKEN_METADATA_BASE_URL: &str = "https://some.example/token/";
-
 /// List of supported standards by this contract address.
 pub const SUPPORTS_STANDARDS: [StandardIdentifier<'static>; 2] =
   [CIS0_STANDARD_IDENTIFIER, CIS2_STANDARD_IDENTIFIER];
@@ -53,6 +49,8 @@ pub struct MintParams {
   pub owner: Address,
   /// tokenID of token to mint
   pub token: ContractTokenId,
+  /// The metadata URL for the token.
+  pub token_uri: String,
 }
 
 /// The state for each address.
@@ -84,11 +82,17 @@ pub struct State<S = StateApi> {
   pub state: StateMap<Address, AddressState<S>, S>,
   /// All of the token IDs
   pub all_tokens: StateSet<ContractTokenId, S>,
+  /// Map with the tokenUris
+  pub token_uris: StateMap<ContractTokenId, String, S>,
   /// Map with contract addresses providing implementations of additional
   /// standards.
   pub implementors: StateMap<StandardIdentifierOwned, Vec<ContractAddress>, S>,
   /// address of the minter
   pub minter: AccountAddress,
+  /// Counter of the mints
+  pub counter: u32,
+  /// Counter of the mint
+  pub mint_count: StateMap<ContractTokenId, u32, S>,
 }
 
 /// The parameter type for the contract function `setImplementors`.
@@ -155,8 +159,11 @@ impl State {
     State {
       state: state_builder.new_map(),
       all_tokens: state_builder.new_set(),
+      token_uris: state_builder.new_map(),
       implementors: state_builder.new_map(),
       minter,
+      counter: 0,
+      mint_count: state_builder.new_map(),
     }
   }
 
@@ -164,13 +171,18 @@ impl State {
   fn mint(
     &mut self,
     token: ContractTokenId,
+    token_uri: String,
     owner: &Address,
     state_builder: &mut StateBuilder,
-  ) -> ContractResult<()> {
+  ) -> ContractResult<u32> {
     ensure!(
-      self.all_tokens.insert(token),
+      self.all_tokens.insert(token) && self.token_uris.insert(token, token_uri).is_none(),
       CustomContractError::TokenIdAlreadyExists.into()
     );
+
+    let count = self.counter;
+    self.counter += 1;
+    self.mint_count.insert(token, count);
 
     let mut owner_state = self
       .state
@@ -178,7 +190,8 @@ impl State {
       .or_insert_with(|| AddressState::empty(state_builder));
 
     owner_state.owned_tokens.insert(token);
-    Ok(())
+
+    Ok(count)
   }
 
   /// Check that the token ID currently exists in this contract.
@@ -298,14 +311,6 @@ impl State {
   }
 }
 
-/// Build a string from TOKEN_METADATA_BASE_URL appended with the token ID
-/// encoded as hex.
-fn build_token_metadata_url(token_id: &ContractTokenId) -> String {
-  let mut token_metadata_url = String::from(TOKEN_METADATA_BASE_URL);
-  token_metadata_url.push_str(&token_id.to_string());
-  token_metadata_url
-}
-
 #[derive(Serialize, SchemaType, Debug)]
 pub struct InitParams {
   pub minter: AccountAddress,
@@ -335,6 +340,9 @@ pub struct ViewAddressState {
 pub struct ViewState {
   pub state: Vec<(Address, ViewAddressState)>,
   pub all_tokens: Vec<ContractTokenId>,
+  pub token_uris: Vec<String>,
+  pub counter: u32,
+  pub mint_count: Vec<(ContractTokenId, u32)>,
 }
 
 /// View function that returns the entire contents of the state. Meant for
@@ -356,10 +364,16 @@ fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<Vie
     ));
   }
   let all_tokens = state.all_tokens.iter().map(|x| *x).collect();
+  let token_uris = state.token_uris.iter().map(|(_, v)| v.clone()).collect();
+  let counter = state.counter;
+  let mint_count = state.mint_count.iter().map(|(k, v)| (*k, *v)).collect();
 
   Ok(ViewState {
     state: inner_state,
     all_tokens,
+    token_uris,
+    counter,
+    mint_count,
   })
 }
 
@@ -401,6 +415,7 @@ fn contract_mint(
   // Parse the parameter.
   let params: MintParams = ctx.parameter_cursor().get()?;
   let token_id = params.token;
+  let token_uri = params.token_uri;
 
   let (state, builder) = host.state_and_builder();
 
@@ -408,7 +423,7 @@ fn contract_mint(
   ensure!(sender.matches_account(&minter), ContractError::Unauthorized);
 
   // Mint the token in the state.
-  state.mint(token_id, &params.owner, builder)?;
+  let mint_count = state.mint(token_id, token_uri.clone(), &params.owner, builder)?;
 
   // Event for minted NFT.
   logger.log(&Cis2Event::Mint(MintEvent {
@@ -418,11 +433,12 @@ fn contract_mint(
   }))?;
 
   // Metadata URL for the NFT.
+  // ADD COUNTER AND Timestamp
   logger.log(&Cis2Event::TokenMetadata::<_, ContractTokenAmount>(
     TokenMetadataEvent {
       token_id,
       metadata_url: MetadataUrl {
-        url: build_token_metadata_url(&token_id),
+        url: token_uri,
         hash: None,
       },
     },
@@ -649,9 +665,14 @@ fn contract_token_metadata(
       host.state().contains_token(&token_id),
       ContractError::InvalidTokenId
     );
+    let token_uri = host
+      .state()
+      .token_uris
+      .get(&token_id)
+      .ok_or(ContractError::InvalidTokenId)?;
 
     let metadata_url = MetadataUrl {
-      url: build_token_metadata_url(&token_id),
+      url: token_uri.to_string(),
       hash: None,
     };
     response.push(metadata_url);
