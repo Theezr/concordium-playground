@@ -27,12 +27,14 @@ const SIGNER: Signer = Signer::with_one_key();
 /// Also tests that the mint count for the token and the counter are updated.
 #[concordium_test]
 fn test_minting() {
-  let (mut chain, contract_address) = initialize_chain_and_contract();
+  let mint_start = 100;
+  let chain_timestamp = mint_start + 1;
+  let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
   let update = mint_to_address(&mut chain, contract_address, OWNER_ADDR, TOKEN_0);
 
   // Check that the tokens are owned by Alice.
   let rv: ViewState = get_view_state(&mut chain, contract_address);
-  println!("rv: {:?}", rv);
+  // println!("rv: {:?}", rv);
 
   assert_eq!(rv.all_tokens[..], [TOKEN_0]);
   assert_eq!(
@@ -47,46 +49,46 @@ fn test_minting() {
   );
   assert_eq!(rv.mint_count, vec![(TokenIdU32(2), 1)]);
   assert_eq!(rv.counter, 1);
+  assert_eq!(rv.mint_start, mint_start);
 
-  // Parse the events into the new Event enum
-  let events = update.events().flat_map(|(_addr, events)| events);
-  let events: Vec<Event> = events
-    .map(|e| match e.parse() {
-      Ok(event) => Event::Cis2Event(event),
-      Err(_) => Event::LogEvent(LogEvent::new(e.to_string())),
-    })
-    .collect();
-
-  println!("events: {:?}", events);
-
-  // Check that the events are logged.
+  // For testing later
   // let events = update.events().flat_map(|(_addr, events)| events);
-  // let events: Vec<Cis2Event<ContractTokenId, ContractTokenAmount>> = events
-  //   .map(|e| e.parse().expect("Deserialize event"))
+  // let events: Vec<Event> = events
+  //   .map(|e| match e.parse() {
+  //     Ok(event) => Event::Cis2Event(event),
+  //     Err(_) => Event::LogEvent(LogEvent::new(e.to_string())),
+  //   })
   //   .collect();
 
-  // assert_eq!(
-  //   events,
-  //   [
-  //     Cis2Event::Mint(MintEvent {
-  //       token_id: TokenIdU32(2),
-  //       amount: TokenAmountU8(1),
-  //       owner: OWNER_ADDR,
-  //     }),
-  //     Cis2Event::TokenMetadata(TokenMetadataEvent {
-  //       token_id: TokenIdU32(2),
-  //       metadata_url: MetadataUrl {
-  //         url: "ipfs://test".to_string(),
-  //         hash: None,
-  //       },
-  //     }),
-  //   ]
-  // );
+  // println!("events: {:?}", events);
+
+  let events = update.events().flat_map(|(_addr, events)| events);
+  let events: Vec<Cis2Event<ContractTokenId, ContractTokenAmount>> = events
+    .map(|e| e.parse().expect("Deserialize event"))
+    .collect();
+
+  assert_eq!(
+    events,
+    [
+      Cis2Event::Mint(MintEvent {
+        token_id: TokenIdU32(2),
+        amount: TokenAmountU8(1),
+        owner: OWNER_ADDR,
+      }),
+      Cis2Event::TokenMetadata(TokenMetadataEvent {
+        token_id: TokenIdU32(2),
+        metadata_url: MetadataUrl {
+          url: "ipfs://test".to_string(),
+          hash: None,
+        },
+      }),
+    ]
+  );
 }
 
 #[concordium_test]
 fn test_token_metadata_on_mint() {
-  let (mut chain, contract_address) = initialize_chain_and_contract();
+  let (mut chain, contract_address) = initialize_chain_and_contract(100);
   mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_0);
 
   let token_ids = ContractTokenMetadataQueryParams {
@@ -125,7 +127,7 @@ fn test_token_metadata_on_mint() {
 
 #[concordium_test]
 fn test_get_mint_count_token_id() {
-  let (mut chain, contract_address) = initialize_chain_and_contract();
+  let (mut chain, contract_address) = initialize_chain_and_contract(100);
   mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_0);
   mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_1);
 
@@ -153,9 +155,40 @@ fn test_get_mint_count_token_id() {
     invoke.parse_return_value().expect("ViewState return value");
   let TokenMintCountQueryResponse(counts) = rv;
 
-  println!("rv get mint count: {:?}", counts);
+  // println!("rv get mint count: {:?}", counts);
 
   assert_eq!(counts, vec![1, 2]);
+}
+
+#[concordium_test]
+fn test_mint_should_fail_when_mint_start_not_reached() {
+  let mint_start = 100;
+  let chain_timestamp = mint_start - 1;
+  let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
+
+  let mint_params = MintParams {
+    owner: OWNER_ADDR,
+    token: TOKEN_0,
+    token_uri: "ipfs://test".to_string(),
+  };
+
+  let update_result = chain.contract_update(
+    SIGNER,
+    MINTER,
+    MINTER_ADDR,
+    Energy::from(10000),
+    UpdateContractPayload {
+      amount: Amount::zero(),
+      receive_name: OwnedReceiveName::new_unchecked("test_nft.mint".to_string()),
+      address: contract_address,
+      message: OwnedParameter::from_serial(&mint_params).expect("Mint params"),
+    },
+  );
+
+  assert!(
+    update_result.is_err(),
+    "Expected contract_update to fail, but it didn't"
+  );
 }
 
 /// Helper function that sets up the contract with two tokens minted to the given recipient
@@ -195,8 +228,11 @@ fn mint_to_address(
 /// Also creates the two accounts, Alice and Bob.
 ///
 /// Alice is the owner of the contract.
-fn initialize_chain_and_contract() -> (Chain, ContractAddress) {
-  let mut chain = Chain::new();
+fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress) {
+  let mut chain = Chain::builder()
+    .block_time(Timestamp::from_timestamp_millis(timestamp))
+    .build()
+    .unwrap();
 
   // Create some accounts accounts on the chain.
   chain.create_account(Account::new(OWNER, ACC_INITIAL_BALANCE));
@@ -209,7 +245,10 @@ fn initialize_chain_and_contract() -> (Chain, ContractAddress) {
     .module_deploy_v1(SIGNER, OWNER, module)
     .expect("Deploy valid module");
 
-  let params = InitParams { minter: MINTER };
+  let params = InitParams {
+    minter: MINTER,
+    mint_start: 100,
+  };
 
   // Initialize the auction contract.
   let init = chain

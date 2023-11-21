@@ -94,6 +94,8 @@ pub struct State<S = StateApi> {
   pub counter: MintCountTokenID,
   /// Counter of the mint
   pub mint_count: StateMap<ContractTokenId, MintCountTokenID, S>,
+  /// Unix timestamp to start minting
+  pub mint_start: u64,
 }
 
 /// The parameter type for the contract function `setImplementors`.
@@ -122,6 +124,7 @@ pub enum CustomContractError {
   TokenIdAlreadyExists,
   /// Failed to invoke a contract.
   InvokeContractError,
+  MintingNotStarted,
 }
 
 /// Wrapping the custom errors in a type with CIS2 errors.
@@ -156,7 +159,7 @@ impl From<CustomContractError> for ContractError {
 // Functions for creating, updating and querying the contract state.
 impl State {
   /// Creates a new state with no tokens.
-  fn init(state_builder: &mut StateBuilder, minter: AccountAddress) -> Self {
+  fn init(state_builder: &mut StateBuilder, minter: AccountAddress, mint_start: u64) -> Self {
     State {
       state: state_builder.new_map(),
       all_tokens: state_builder.new_set(),
@@ -165,6 +168,7 @@ impl State {
       minter,
       counter: 0,
       mint_count: state_builder.new_map(),
+      mint_start,
     }
   }
 
@@ -315,6 +319,7 @@ impl State {
 #[derive(Serialize, SchemaType, Debug)]
 pub struct InitParams {
   pub minter: AccountAddress,
+  pub mint_start: u64, // Unix milliseconds
 }
 
 // Contract functions
@@ -328,7 +333,7 @@ pub struct InitParams {
 fn contract_init(ctx: &InitContext, state_builder: &mut StateBuilder) -> InitResult<State> {
   let param: InitParams = ctx.parameter_cursor().get()?;
   // Construct the initial contract state.
-  Ok(State::init(state_builder, param.minter))
+  Ok(State::init(state_builder, param.minter, param.mint_start))
 }
 
 #[derive(Serialize, SchemaType, PartialEq, Eq, Debug)]
@@ -344,6 +349,7 @@ pub struct ViewState {
   pub token_uris: Vec<String>,
   pub counter: u32,
   pub mint_count: Vec<(ContractTokenId, u32)>,
+  pub mint_start: u64,
 }
 
 /// View function that returns the entire contents of the state. Meant for
@@ -366,15 +372,15 @@ fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<Vie
   }
   let all_tokens = state.all_tokens.iter().map(|x| *x).collect();
   let token_uris = state.token_uris.iter().map(|(_, v)| v.clone()).collect();
-  let counter = state.counter;
   let mint_count = state.mint_count.iter().map(|(k, v)| (*k, *v)).collect();
 
   Ok(ViewState {
     state: inner_state,
     all_tokens,
     token_uris,
-    counter,
+    counter: state.counter,
     mint_count,
+    mint_start: state.mint_start,
   })
 }
 
@@ -425,26 +431,27 @@ fn contract_mint(
   host: &mut Host<State>,
   logger: &mut Logger,
 ) -> ContractResult<()> {
-  // Get the contract owner
-  let owner = ctx.owner();
-  // Get the sender of the transaction
+  let (state, builder) = host.state_and_builder();
   let sender = ctx.sender();
-  let block_time: Timestamp = ctx.metadata().block_time();
+  let minter = state.minter;
+  ensure!(sender.matches_account(&minter), ContractError::Unauthorized);
+  // Get the sender of the transaction
+  let block_time: u64 = ctx.metadata().block_time().timestamp_millis();
+  ensure!(
+    block_time >= state.mint_start,
+    CustomContractError::MintingNotStarted.into()
+  );
 
   //// TESTING BLOCK
-  let block_time_string = format!("{:?}", block_time);
-  let log_event = LogEvent::new(block_time_string);
-  logger.log(&log_event)?;
+  // let block_time_string = format!("{:?}", block_time);
+  // let log_event = LogEvent::new(block_time_string);
+  // logger.log(&log_event)?;
+  //// TESTING BLOCK
 
   // Parse the parameter.
   let params: MintParams = ctx.parameter_cursor().get()?;
   let token_id = params.token;
   let token_uri = params.token_uri;
-
-  let (state, builder) = host.state_and_builder();
-
-  let minter = state.minter;
-  ensure!(sender.matches_account(&minter), ContractError::Unauthorized);
 
   // Mint the token in the state.
   let mint_count = state.mint(token_id, token_uri.clone(), &params.owner, builder)?;
