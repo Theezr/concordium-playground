@@ -378,6 +378,24 @@ fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<Vie
   })
 }
 
+#[derive(Serialize, SchemaType, Debug)]
+pub struct LogEvent {
+  message: String,
+}
+
+impl LogEvent {
+  pub fn new(message: String) -> Self {
+    Self { message }
+  }
+}
+
+// Define a new enum that includes both Cis2Event and LogEvent as variants
+#[derive(Debug)]
+pub enum Event {
+  Cis2Event(Cis2Event<ContractTokenId, ContractTokenAmount>),
+  LogEvent(LogEvent),
+}
+
 /// Mint new tokens with a given address as the owner of these tokens.
 /// Can only be called by the contract owner.
 /// Logs a `Mint` and a `TokenMetadata` event for each token.
@@ -405,13 +423,18 @@ fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<Vie
 fn contract_mint(
   ctx: &ReceiveContext,
   host: &mut Host<State>,
-  logger: &mut impl HasLogger,
+  logger: &mut Logger,
 ) -> ContractResult<()> {
   // Get the contract owner
   let owner = ctx.owner();
   // Get the sender of the transaction
   let sender = ctx.sender();
-  // ensure!(sender.matches_account(&owner), ContractError::Unauthorized);
+  let block_time: Timestamp = ctx.metadata().block_time();
+
+  //// TESTING BLOCK
+  let block_time_string = format!("{:?}", block_time);
+  let log_event = LogEvent::new(block_time_string);
+  logger.log(&log_event)?;
 
   // Parse the parameter.
   let params: MintParams = ctx.parameter_cursor().get()?;
@@ -475,7 +498,7 @@ type TransferParameter = TransferParams<ContractTokenId, ContractTokenAmount>;
 fn contract_transfer(
   ctx: &ReceiveContext,
   host: &mut Host<State>,
-  logger: &mut impl HasLogger,
+  logger: &mut Logger,
 ) -> ContractResult<()> {
   // Parse the parameter.
   let TransferParams(transfers): TransferParameter = ctx.parameter_cursor().get()?;
@@ -544,7 +567,7 @@ fn contract_transfer(
 fn contract_update_operator(
   ctx: &ReceiveContext,
   host: &mut Host<State>,
-  logger: &mut impl HasLogger,
+  logger: &mut Logger,
 ) -> ContractResult<()> {
   // Parse the parameter.
   let UpdateOperatorParams(params) = ctx.parameter_cursor().get()?;
