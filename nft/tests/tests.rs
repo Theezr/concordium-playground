@@ -10,7 +10,7 @@ const OWNER_ADDR: Address = Address::Account(OWNER);
 const MINTER: AccountAddress = AccountAddress([2; 32]);
 const MINTER_ADDR: Address = Address::Account(MINTER);
 const USER: AccountAddress = AccountAddress([3; 32]);
-const USER_ADDR: Address = Address::Account(MINTER);
+const USER_ADDR: Address = Address::Account(USER);
 
 /// Token IDs.
 const TOKEN_0: ContractTokenId = TokenIdU32(2);
@@ -24,28 +24,14 @@ const SIGNER: Signer = Signer::with_one_key();
 
 /// Test minting succeeds and the tokens are owned by the given address and
 /// the appropriate events are logged.
+/// Also tests that the mint count for the token and the counter are updated.
 #[concordium_test]
 fn test_minting() {
   let (mut chain, contract_address) = initialize_chain_and_contract();
-  let update = mint_to_owner(&mut chain, contract_address);
-
-  // Invoke the view entrypoint and check that the tokens are owned by Alice.
-  let invoke = chain
-    .contract_invoke(
-      OWNER,
-      OWNER_ADDR,
-      Energy::from(10000),
-      UpdateContractPayload {
-        amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.view".to_string()),
-        address: contract_address,
-        message: OwnedParameter::empty(),
-      },
-    )
-    .expect("Invoke view");
+  let update = mint_to_address(&mut chain, contract_address, OWNER_ADDR, TOKEN_0);
 
   // Check that the tokens are owned by Alice.
-  let rv: ViewState = invoke.parse_return_value().expect("ViewState return value");
+  let rv: ViewState = get_view_state(&mut chain, contract_address);
   println!("rv: {:?}", rv);
 
   assert_eq!(rv.all_tokens[..], [TOKEN_0]);
@@ -90,9 +76,9 @@ fn test_minting() {
 }
 
 #[concordium_test]
-fn test_contract_token_metadata() {
+fn test_token_metadata_on_mint() {
   let (mut chain, contract_address) = initialize_chain_and_contract();
-  let update = mint_to_owner(&mut chain, contract_address);
+  mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_0);
 
   let token_ids = ContractTokenMetadataQueryParams {
     queries: vec![TOKEN_0],
@@ -101,8 +87,8 @@ fn test_contract_token_metadata() {
   // Invoke the view entrypoint and check that the tokens are owned by Alice.
   let invoke = chain
     .contract_invoke(
-      OWNER,
-      OWNER_ADDR,
+      USER,
+      USER_ADDR,
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
@@ -116,7 +102,8 @@ fn test_contract_token_metadata() {
   // Check that the tokenUri is set correctly
   let rv: TokenMetadataQueryResponse = invoke.parse_return_value().expect("ViewState return value");
   let TokenMetadataQueryResponse(urls) = rv;
-  println!("rv: {:?}", urls);
+
+  // println!("rv: {:?}", urls);
 
   assert_eq!(
     urls,
@@ -127,12 +114,51 @@ fn test_contract_token_metadata() {
   );
 }
 
-/// Helper function that sets up the contract with two tokens minted to
-/// Alice, `TOKEN_0` and `TOKEN_1`.
-fn mint_to_owner(chain: &mut Chain, contract_address: ContractAddress) -> ContractInvokeSuccess {
+#[concordium_test]
+fn test_get_mint_count_token_id() {
+  let (mut chain, contract_address) = initialize_chain_and_contract();
+  mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_0);
+  mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_1);
+
+  let token_ids = ContractMintCountQueryParams {
+    queries: vec![TOKEN_0, TOKEN_1],
+  };
+
+  // Invoke the view entrypoint and check that the tokens are owned by Alice.
+  let invoke = chain
+    .contract_invoke(
+      USER,
+      USER_ADDR,
+      Energy::from(10000),
+      UpdateContractPayload {
+        amount: Amount::zero(),
+        receive_name: OwnedReceiveName::new_unchecked("test_nft.getMintCountTokenID".to_string()),
+        address: contract_address,
+        message: OwnedParameter::from_serial(&token_ids).expect("tokenIds params"),
+      },
+    )
+    .expect("Invoke view");
+
+  // Check that the tokenUri is set correctly
+  let rv: TokenMintCountQueryResponse =
+    invoke.parse_return_value().expect("ViewState return value");
+  let TokenMintCountQueryResponse(counts) = rv;
+
+  println!("rv get mint count: {:?}", counts);
+
+  assert_eq!(counts, vec![1, 2]);
+}
+
+/// Helper function that sets up the contract with two tokens minted to the given recipient
+fn mint_to_address(
+  chain: &mut Chain,
+  contract_address: ContractAddress,
+  recipient: Address,
+  token_id: ContractTokenId,
+) -> ContractInvokeSuccess {
   let mint_params = MintParams {
-    owner: OWNER_ADDR,
-    token: TOKEN_0,
+    owner: recipient,
+    token: token_id,
     token_uri: "ipfs://test".to_string(),
   };
 
@@ -166,6 +192,7 @@ fn initialize_chain_and_contract() -> (Chain, ContractAddress) {
   // Create some accounts accounts on the chain.
   chain.create_account(Account::new(OWNER, ACC_INITIAL_BALANCE));
   chain.create_account(Account::new(MINTER, ACC_INITIAL_BALANCE));
+  chain.create_account(Account::new(USER, ACC_INITIAL_BALANCE));
 
   // Load and deploy the module.
   let module = module_load_v1("nft_test.wasm.v1").expect("Module exists");
@@ -191,4 +218,22 @@ fn initialize_chain_and_contract() -> (Chain, ContractAddress) {
     .expect("Initialize contract");
 
   (chain, init.contract_address)
+}
+
+fn get_view_state(chain: &mut Chain, contract_address: ContractAddress) -> ViewState {
+  let invoke = chain
+    .contract_invoke(
+      OWNER,
+      OWNER_ADDR,
+      Energy::from(10000),
+      UpdateContractPayload {
+        amount: Amount::zero(),
+        receive_name: OwnedReceiveName::new_unchecked("test_nft.view".to_string()),
+        address: contract_address,
+        message: OwnedParameter::empty(),
+      },
+    )
+    .expect("Invoke view");
+
+  invoke.parse_return_value().expect("ViewState return value")
 }

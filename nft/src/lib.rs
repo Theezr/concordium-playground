@@ -35,6 +35,7 @@ pub const SUPPORTS_STANDARDS: [StandardIdentifier<'static>; 2] =
 /// Contract token ID type.
 /// To save bytes we use a token ID type limited to a `u32`.
 pub type ContractTokenId = TokenIdU32;
+pub type MintCountTokenID = u32;
 
 /// Contract token amount.
 /// Since the tokens are non-fungible the total supply of any token will be at
@@ -90,9 +91,9 @@ pub struct State<S = StateApi> {
   /// address of the minter
   pub minter: AccountAddress,
   /// Counter of the mints
-  pub counter: u32,
+  pub counter: MintCountTokenID,
   /// Counter of the mint
-  pub mint_count: StateMap<ContractTokenId, u32, S>,
+  pub mint_count: StateMap<ContractTokenId, MintCountTokenID, S>,
 }
 
 /// The parameter type for the contract function `setImplementors`.
@@ -180,8 +181,8 @@ impl State {
       CustomContractError::TokenIdAlreadyExists.into()
     );
 
-    let count = self.counter;
     self.counter += 1;
+    let count = self.counter;
     self.mint_count.insert(token, count);
 
     let mut owner_state = self
@@ -739,4 +740,58 @@ fn contract_set_implementor(ctx: &ReceiveContext, host: &mut Host<State>) -> Con
     .state_mut()
     .set_implementors(params.id, params.implementors);
   Ok(())
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+#[derive(Debug, Serialize, SchemaType)]
+#[concordium(transparent)]
+pub struct MintCountQueryParams<T: IsTokenId> {
+  /// List of balance queries.
+  #[concordium(size_length = 2)]
+  pub queries: Vec<T>,
+}
+
+pub type ContractMintCountQueryParams = MintCountQueryParams<ContractTokenId>;
+
+#[derive(Debug, Serialize, SchemaType)]
+#[concordium(transparent)]
+pub struct TokenMintCountQueryResponse(#[concordium(size_length = 2)] pub Vec<MintCountTokenID>);
+
+impl From<Vec<MintCountTokenID>> for TokenMintCountQueryResponse {
+  fn from(results: Vec<MintCountTokenID>) -> Self {
+    TokenMintCountQueryResponse(results)
+  }
+}
+
+#[receive(
+  contract = "test_nft",
+  name = "getMintCountTokenID",
+  parameter = "ContractMintCountQueryParams",
+  return_value = "TokenMintCountQueryResponse",
+  error = "ContractError"
+)]
+fn contract_get_mint_count_token_id(
+  ctx: &ReceiveContext,
+  host: &Host<State>,
+) -> ContractResult<TokenMintCountQueryResponse> {
+  // Parse the parameter.
+  let params: ContractMintCountQueryParams = ctx.parameter_cursor().get()?;
+  // Build the response.
+  let mut response = Vec::with_capacity(params.queries.len());
+  for token_id in params.queries {
+    // Check the token exists.
+    ensure!(
+      host.state().contains_token(&token_id),
+      ContractError::InvalidTokenId
+    );
+    let mint_count = host
+      .state()
+      .mint_count
+      .get(&token_id)
+      .ok_or(ContractError::InvalidTokenId)?;
+
+    response.push(*mint_count);
+  }
+  let result = TokenMintCountQueryResponse::from(response);
+  Ok(result)
 }
