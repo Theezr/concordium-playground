@@ -22,13 +22,15 @@ const ACC_INITIAL_BALANCE: Amount = Amount::from_ccd(10000);
 /// A signer for all the transactions.
 const SIGNER: Signer = Signer::with_one_key();
 
+const MINT_START: u64 = 100;
+const MINT_DEADLINE: u64 = 1000;
+
 /// Test minting succeeds and the tokens are owned by the given address and
 /// the appropriate events are logged.
 /// Also tests that the mint count for the token and the counter are updated.
 #[concordium_test]
 fn test_minting() {
-  let mint_start = 100;
-  let chain_timestamp = mint_start + 1;
+  let chain_timestamp = MINT_START + 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
   let update = mint_to_address(&mut chain, contract_address, OWNER_ADDR, TOKEN_0);
 
@@ -49,7 +51,7 @@ fn test_minting() {
   );
   assert_eq!(rv.mint_count, vec![(TokenIdU32(2), 1)]);
   assert_eq!(rv.counter, 1);
-  assert_eq!(rv.mint_start, mint_start);
+  assert_eq!(rv.mint_start, MINT_START);
 
   // For testing later
   // let events = update.events().flat_map(|(_addr, events)| events);
@@ -161,9 +163,38 @@ fn test_get_mint_count_token_id() {
 }
 
 #[concordium_test]
-fn test_mint_should_fail_when_mint_start_not_reached() {
-  let mint_start = 100;
-  let chain_timestamp = mint_start - 1;
+fn test_mint_should_fail_when_minting_not_started() {
+  let chain_timestamp = MINT_START - 1;
+  let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
+
+  let mint_params = MintParams {
+    owner: OWNER_ADDR,
+    token: TOKEN_0,
+    token_uri: "ipfs://test".to_string(),
+  };
+
+  let update_result = chain.contract_update(
+    SIGNER,
+    MINTER,
+    MINTER_ADDR,
+    Energy::from(10000),
+    UpdateContractPayload {
+      amount: Amount::zero(),
+      receive_name: OwnedReceiveName::new_unchecked("test_nft.mint".to_string()),
+      address: contract_address,
+      message: OwnedParameter::from_serial(&mint_params).expect("Mint params"),
+    },
+  );
+
+  assert!(
+    update_result.is_err(),
+    "Expected contract_update to fail, but it didn't"
+  );
+}
+
+#[concordium_test]
+fn test_mint_should_fail_when_mint_deadline_reached() {
+  let chain_timestamp = MINT_DEADLINE + 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
   let mint_params = MintParams {
@@ -247,7 +278,8 @@ fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress) {
 
   let params = InitParams {
     minter: MINTER,
-    mint_start: 100,
+    mint_start: MINT_START,
+    mint_deadline: MINT_DEADLINE,
   };
 
   // Initialize the auction contract.

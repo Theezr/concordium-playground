@@ -96,6 +96,8 @@ pub struct State<S = StateApi> {
   pub mint_count: StateMap<ContractTokenId, MintCountTokenID, S>,
   /// Unix timestamp to start minting
   pub mint_start: u64,
+  /// Minting deadline in Unix timestamp
+  pub mint_deadline: u64,
 }
 
 /// The parameter type for the contract function `setImplementors`.
@@ -125,6 +127,7 @@ pub enum CustomContractError {
   /// Failed to invoke a contract.
   InvokeContractError,
   MintingNotStarted,
+  MintDeadlineReached,
 }
 
 /// Wrapping the custom errors in a type with CIS2 errors.
@@ -159,7 +162,12 @@ impl From<CustomContractError> for ContractError {
 // Functions for creating, updating and querying the contract state.
 impl State {
   /// Creates a new state with no tokens.
-  fn init(state_builder: &mut StateBuilder, minter: AccountAddress, mint_start: u64) -> Self {
+  fn init(
+    state_builder: &mut StateBuilder,
+    minter: AccountAddress,
+    mint_start: u64,
+    mint_deadline: u64,
+  ) -> Self {
     State {
       state: state_builder.new_map(),
       all_tokens: state_builder.new_set(),
@@ -169,6 +177,7 @@ impl State {
       counter: 0,
       mint_count: state_builder.new_map(),
       mint_start,
+      mint_deadline,
     }
   }
 
@@ -319,7 +328,8 @@ impl State {
 #[derive(Serialize, SchemaType, Debug)]
 pub struct InitParams {
   pub minter: AccountAddress,
-  pub mint_start: u64, // Unix milliseconds
+  pub mint_start: u64,    // Unix milliseconds
+  pub mint_deadline: u64, // Unix milliseconds
 }
 
 // Contract functions
@@ -333,7 +343,12 @@ pub struct InitParams {
 fn contract_init(ctx: &InitContext, state_builder: &mut StateBuilder) -> InitResult<State> {
   let param: InitParams = ctx.parameter_cursor().get()?;
   // Construct the initial contract state.
-  Ok(State::init(state_builder, param.minter, param.mint_start))
+  Ok(State::init(
+    state_builder,
+    param.minter,
+    param.mint_start,
+    param.mint_deadline,
+  ))
 }
 
 #[derive(Serialize, SchemaType, PartialEq, Eq, Debug)]
@@ -440,6 +455,10 @@ fn contract_mint(
   ensure!(
     block_time >= state.mint_start,
     CustomContractError::MintingNotStarted.into()
+  );
+  ensure!(
+    block_time < state.mint_deadline,
+    CustomContractError::MintDeadlineReached.into()
   );
 
   //// TESTING BLOCK
