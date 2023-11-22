@@ -98,6 +98,8 @@ pub struct State<S = StateApi> {
   pub mint_start: u64,
   /// Minting deadline in Unix timestamp
   pub mint_deadline: u64,
+  /// Max total supply
+  pub max_total_supply: u32,
 }
 
 /// The parameter type for the contract function `setImplementors`.
@@ -128,6 +130,7 @@ pub enum CustomContractError {
   InvokeContractError,
   MintingNotStarted,
   MintDeadlineReached,
+  MaxTotalSupplyReached,
 }
 
 /// Wrapping the custom errors in a type with CIS2 errors.
@@ -162,22 +165,18 @@ impl From<CustomContractError> for ContractError {
 // Functions for creating, updating and querying the contract state.
 impl State {
   /// Creates a new state with no tokens.
-  fn init(
-    state_builder: &mut StateBuilder,
-    minter: AccountAddress,
-    mint_start: u64,
-    mint_deadline: u64,
-  ) -> Self {
+  fn init(state_builder: &mut StateBuilder, init_params: InitParams) -> Self {
     State {
       state: state_builder.new_map(),
       all_tokens: state_builder.new_set(),
       token_uris: state_builder.new_map(),
       implementors: state_builder.new_map(),
-      minter,
-      counter: 0,
       mint_count: state_builder.new_map(),
-      mint_start,
-      mint_deadline,
+      counter: 0,
+      minter: init_params.minter,
+      mint_start: init_params.mint_start,
+      mint_deadline: init_params.mint_deadline,
+      max_total_supply: init_params.max_total_supply,
     }
   }
 
@@ -196,6 +195,12 @@ impl State {
 
     self.counter += 1;
     let count = self.counter;
+
+    ensure!(
+      count <= self.max_total_supply,
+      CustomContractError::MaxTotalSupplyReached.into()
+    );
+
     self.mint_count.insert(token, count);
 
     let mut owner_state = self
@@ -323,6 +328,10 @@ impl State {
   ) {
     self.implementors.insert(std_id, implementors);
   }
+
+  fn set_minter(&mut self, minter: AccountAddress) {
+    self.minter = minter;
+  }
 }
 
 #[derive(Serialize, SchemaType, Debug)]
@@ -330,6 +339,7 @@ pub struct InitParams {
   pub minter: AccountAddress,
   pub mint_start: u64,    // Unix milliseconds
   pub mint_deadline: u64, // Unix milliseconds
+  pub max_total_supply: u32,
 }
 
 // Contract functions
@@ -341,14 +351,9 @@ pub struct InitParams {
   event = "Cis2Event<ContractTokenId, ContractTokenAmount>"
 )]
 fn contract_init(ctx: &InitContext, state_builder: &mut StateBuilder) -> InitResult<State> {
-  let param: InitParams = ctx.parameter_cursor().get()?;
+  let params: InitParams = ctx.parameter_cursor().get()?;
   // Construct the initial contract state.
-  Ok(State::init(
-    state_builder,
-    param.minter,
-    param.mint_start,
-    param.mint_deadline,
-  ))
+  Ok(State::init(state_builder, params))
 }
 
 #[derive(Serialize, SchemaType, PartialEq, Eq, Debug)]
@@ -365,6 +370,8 @@ pub struct ViewState {
   pub counter: u32,
   pub mint_count: Vec<(ContractTokenId, u32)>,
   pub mint_start: u64,
+  pub mint_deadline: u64,
+  pub max_total_supply: u32,
 }
 
 /// View function that returns the entire contents of the state. Meant for
@@ -396,6 +403,8 @@ fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<Vie
     counter: state.counter,
     mint_count,
     mint_start: state.mint_start,
+    mint_deadline: state.mint_deadline,
+    max_total_supply: state.max_total_supply,
   })
 }
 
@@ -843,4 +852,55 @@ fn contract_get_mint_count_token_id(
   }
   let result = TokenMintCountQueryResponse::from(response);
   Ok(result)
+}
+
+#[derive(Serialize, SchemaType, Debug)]
+pub struct ViewSettings {
+  pub minter: AccountAddress,
+  pub mint_start: u64,
+  pub mint_deadline: u64,
+  pub max_total_supply: u32,
+}
+
+#[receive(
+  contract = "test_nft",
+  name = "viewSettings",
+  return_value = "ViewSettings"
+)]
+fn contract_view_settings(
+  _ctx: &ReceiveContext,
+  host: &Host<State>,
+) -> ReceiveResult<ViewSettings> {
+  let state = host.state();
+
+  Ok(ViewSettings {
+    minter: state.minter,
+    mint_start: state.mint_start,
+    mint_deadline: state.mint_deadline,
+    max_total_supply: state.max_total_supply,
+  })
+}
+
+#[derive(Debug, Serialize, SchemaType)]
+pub struct SetMinter {
+  pub minter: AccountAddress,
+}
+
+#[receive(
+  contract = "test_nft",
+  name = "setMinter",
+  parameter = "SetMinter",
+  error = "ContractError",
+  mutable
+)]
+fn contract_set_minter(ctx: &ReceiveContext, host: &mut Host<State>) -> ContractResult<()> {
+  ensure!(
+    ctx.sender().matches_account(&ctx.owner()),
+    ContractError::Unauthorized
+  );
+
+  let params: SetMinter = ctx.parameter_cursor().get()?;
+
+  host.state_mut().set_minter(params.minter);
+  Ok(())
 }
