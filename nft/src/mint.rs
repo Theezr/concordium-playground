@@ -4,6 +4,7 @@ use concordium_std::*;
 use crate::{
   cis2::{ContractTokenAmount, ContractTokenId},
   error::{ContractError, ContractResult, CustomContractError},
+  events::{ContractEvent, MintedEvent},
   state::State,
 };
 
@@ -83,23 +84,32 @@ fn contract_mint(
     // })?;
 
     // Event for minted NFT.
-    logger.log(&Cis2Event::Mint(MintEvent {
+    logger.log(&ContractEvent::Mint(MintEvent {
       token_id,
       amount: ContractTokenAmount::from(1),
       owner,
     }))?;
 
     // Metadata URL for the NFT.
-    // ADD COUNTER AND Timestamp
-    logger.log(&Cis2Event::TokenMetadata::<_, ContractTokenAmount>(
-      TokenMetadataEvent {
-        token_id,
-        metadata_url: MetadataUrl {
-          url: token_uri,
-          hash: None,
-        },
+    // ADD COUNTER AND Timestamp mayber REMOVE?
+    logger.log(&ContractEvent::TokenMetadata(TokenMetadataEvent {
+      token_id,
+      metadata_url: MetadataUrl {
+        url: token_uri.clone(),
+        hash: None,
       },
-    ))?;
+    }))?;
+
+    // Event for minted NFT.
+    logger.log(&ContractEvent::Minted(MintedEvent {
+      token_id,
+      mint_count,
+      timestamp: block_time,
+      token_uri: MetadataUrl {
+        url: token_uri,
+        hash: None,
+      },
+    }))?;
   }
 
   Ok(())

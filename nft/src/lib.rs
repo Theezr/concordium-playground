@@ -2,6 +2,7 @@
 pub mod cis2;
 pub mod contract_view;
 pub mod error;
+pub mod events;
 pub mod init;
 pub mod mint;
 pub mod state;

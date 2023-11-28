@@ -2,7 +2,13 @@
 use concordium_cis2::*;
 use concordium_smart_contract_testing::*;
 use concordium_std::concordium_test;
-use test_nft::{cis2::*, contract_view::*, init::*, mint::*};
+use test_nft::{
+  cis2::*,
+  contract_view::*,
+  events::{ContractEvent, MintedEvent},
+  init::*,
+  mint::*,
+};
 
 /// The tests accounts.
 const OWNER: AccountAddress = AccountAddress([1; 32]);
@@ -73,7 +79,7 @@ fn test_minting() {
   //   .collect();
 
   let events = update.events().flat_map(|(_addr, events)| events);
-  let events: Vec<Cis2Event<ContractTokenId, ContractTokenAmount>> = events
+  let events: Vec<ContractEvent> = events
     .map(|e| e.parse().expect("Deserialize event"))
     .collect();
 
@@ -82,18 +88,27 @@ fn test_minting() {
   assert_eq!(
     events,
     [
-      Cis2Event::Mint(MintEvent {
+      ContractEvent::Mint(MintEvent {
         token_id: TokenIdU32(2),
         amount: TokenAmountU8(1),
         owner: USER_ADDR,
       }),
-      Cis2Event::TokenMetadata(TokenMetadataEvent {
+      ContractEvent::TokenMetadata(TokenMetadataEvent {
         token_id: TokenIdU32(2),
         metadata_url: MetadataUrl {
           url: "ipfs://test".to_string(),
           hash: None,
         },
       }),
+      ContractEvent::Minted(MintedEvent {
+        token_id: TokenIdU32(2),
+        mint_count: 1,
+        timestamp: MINT_START + 1,
+        token_uri: MetadataUrl {
+          url: "ipfs://test".to_string(),
+          hash: None,
+        },
+      })
     ]
   );
 }
