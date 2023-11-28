@@ -1,7 +1,7 @@
 //! Tests for the `test_nft` contract.
 use concordium_cis2::*;
 use concordium_smart_contract_testing::*;
-use concordium_std::{collections::BTreeSet, concordium_test};
+use concordium_std::concordium_test;
 use test_nft::*;
 
 /// The tests accounts.
@@ -34,27 +34,21 @@ const MAX_TOTAL_SUPPLY: u32 = 10;
 fn test_minting() {
   let chain_timestamp = MINT_START + 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
-  let update = mint_to_address(
-    &mut chain,
-    contract_address,
-    OWNER_ADDR,
-    TOKEN_0,
-    None,
-    None,
-  )
-  .expect("Mint failed");
+
+  let update = mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None)
+    .expect("Mint failed");
 
   // Check that the tokens are owned by Alice.
   let rv: ViewState = get_view_state(&chain, contract_address);
-  // println!("rv: {:?}", rv);
+  println!("rv: {:?}", rv);
 
-  assert_eq!(rv.all_tokens[..], [TOKEN_0]);
+  assert_eq!(rv.all_tokens[..], [TokenIdU32(2)]);
   assert_eq!(
     rv.state,
     vec![(
-      OWNER_ADDR,
+      USER_ADDR,
       ViewAddressState {
-        owned_tokens: vec![TOKEN_0],
+        owned_tokens: vec![TokenIdU32(2)],
         operators: Vec::new(),
       }
     )]
@@ -87,7 +81,7 @@ fn test_minting() {
       Cis2Event::Mint(MintEvent {
         token_id: TokenIdU32(2),
         amount: TokenAmountU8(1),
-        owner: OWNER_ADDR,
+        owner: USER_ADDR,
       }),
       Cis2Event::TokenMetadata(TokenMetadataEvent {
         token_id: TokenIdU32(2),
@@ -103,8 +97,7 @@ fn test_minting() {
 #[concordium_test]
 fn test_token_metadata_on_mint() {
   let (mut chain, contract_address) = initialize_chain_and_contract(100);
-  mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_0, None, None)
-    .expect("Mint failed");
+  mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None).expect("Mint failed");
 
   let token_ids = ContractTokenMetadataQueryParams {
     queries: vec![TOKEN_0],
@@ -143,9 +136,9 @@ fn test_token_metadata_on_mint() {
 #[concordium_test]
 fn test_get_mint_count_token_id() {
   let (mut chain, contract_address) = initialize_chain_and_contract(100);
-  mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_0, None, None)
-    .expect("Mint failed");
-  mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_1, None, None)
+  mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None).expect("Mint failed");
+
+  mint_to_address(&mut chain, contract_address, c_mint_params(42), None, None)
     .expect("Mint failed");
 
   let token_ids = ContractMintCountQueryParams {
@@ -182,7 +175,7 @@ fn test_mint_should_fail_when_minting_not_started() {
   let chain_timestamp = MINT_START - 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
-  let update_result = mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_0, None, None);
+  let update_result = mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None);
 
   assert!(update_result.is_err(), "Call didnt fail");
 }
@@ -192,7 +185,7 @@ fn test_mint_should_fail_when_mint_deadline_reached() {
   let chain_timestamp = MINT_DEADLINE + 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
-  let update_result = mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_0, None, None);
+  let update_result = mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None);
 
   assert!(update_result.is_err(), "Call didnt fail");
 }
@@ -203,14 +196,7 @@ fn test_mint_should_fail_when_max_supply_reached() {
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
   for i in 1..MAX_TOTAL_SUPPLY + 2 {
-    let update_result = mint_to_address(
-      &mut chain,
-      contract_address,
-      USER_ADDR,
-      TokenIdU32(i),
-      None,
-      None,
-    );
+    let update_result = mint_to_address(&mut chain, contract_address, c_mint_params(i), None, None);
 
     if i <= MAX_TOTAL_SUPPLY {
       assert!(update_result.is_ok(), "Call didnt succeed");
@@ -240,12 +226,6 @@ fn test_mint_should_fail_when_not_minter() {
   let chain_timestamp = MINT_START + 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
-  let mint_params = MintParams {
-    owner: USER_ADDR,
-    token: TOKEN_0,
-    token_uri: "ipfs://test".to_string(),
-  };
-
   // Mint two tokens to Alice.
   let update_result = chain.contract_update(
     SIGNER,
@@ -256,7 +236,7 @@ fn test_mint_should_fail_when_not_minter() {
       amount: Amount::zero(),
       receive_name: OwnedReceiveName::new_unchecked("test_nft.mint".to_string()),
       address: contract_address,
-      message: OwnedParameter::from_serial(&mint_params).expect("Mint params"),
+      message: OwnedParameter::from_serial(&c_mint_params(2)).expect("Mint params"),
     },
   );
   assert!(update_result.is_err(), "Call didnt fail");
@@ -272,9 +252,10 @@ fn test_owner_should_be_able_to_set_minter() {
 
   let new_minter_params = SetMinter { minter: NEW_MINTER };
 
-  let update_result = mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_0, None, None);
+  let update_result = mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None);
   assert!(update_result.is_ok(), "Call didnt fail");
 
+  // Change minter
   let update_result = chain.contract_update(
     SIGNER,
     OWNER,
@@ -289,14 +270,15 @@ fn test_owner_should_be_able_to_set_minter() {
   );
   assert!(update_result.is_ok(), "Call didnt succeed");
 
-  let update_result = mint_to_address(&mut chain, contract_address, USER_ADDR, TOKEN_1, None, None);
+  // Mint with old minter should fail
+  let update_result = mint_to_address(&mut chain, contract_address, c_mint_params(42), None, None);
   assert!(update_result.is_err(), "Call didnt fail");
 
+  // Mint with new minter
   let update_result = mint_to_address(
     &mut chain,
     contract_address,
-    USER_ADDR,
-    TOKEN_1,
+    c_mint_params(42),
     Some(new_minter_params.minter),
     Some(Address::Account(new_minter_params.minter)),
   );
@@ -310,19 +292,12 @@ fn test_owner_should_be_able_to_set_minter() {
 fn mint_to_address(
   chain: &mut Chain,
   contract_address: ContractAddress,
-  recipient: Address,
-  token_id: ContractTokenId,
+  mint_params: MintParams,
   invoker: Option<AccountAddress>,
   sender: Option<Address>,
 ) -> Result<ContractInvokeSuccess, ContractInvokeError> {
   let invoker = invoker.unwrap_or(MINTER);
   let sender = sender.unwrap_or(MINTER_ADDR);
-
-  let mint_params = MintParams {
-    owner: recipient,
-    token: token_id,
-    token_uri: "ipfs://test".to_string(),
-  };
 
   // Mint two tokens to Alice.
   let update_result = chain.contract_update(
@@ -339,6 +314,14 @@ fn mint_to_address(
   );
 
   update_result
+}
+
+fn c_mint_params(token: u32) -> MintParams {
+  MintParams {
+    owners: vec![USER_ADDR],
+    tokens: vec![TokenIdU32(token)],
+    token_uris: vec!["ipfs://test".to_string()],
+  }
 }
 
 /// Setup chain and contract.

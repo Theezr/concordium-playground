@@ -47,11 +47,14 @@ pub type ContractTokenAmount = TokenAmountU8;
 #[derive(Serial, Deserial, SchemaType)]
 pub struct MintParams {
   /// Owner of the newly minted tokens.
-  pub owner: Address,
-  /// tokenID of token to mint
-  pub token: ContractTokenId,
+  #[concordium(size_length = 1)] // max size of 256
+  pub owners: Vec<Address>,
+  /// A collection of tokens to mint.
+  #[concordium(size_length = 1)] // max size of 256
+  pub tokens: Vec<ContractTokenId>,
   /// The metadata URL for the token.
-  pub token_uri: String,
+  #[concordium(size_length = 1)] // max size of 256
+  pub token_uris: Vec<String>,
 }
 
 /// The state for each address.
@@ -184,12 +187,12 @@ impl State {
   fn mint(
     &mut self,
     token: ContractTokenId,
-    token_uri: String,
     owner: &Address,
+    token_uri: &String,
     state_builder: &mut StateBuilder,
   ) -> ContractResult<u32> {
     ensure!(
-      self.all_tokens.insert(token) && self.token_uris.insert(token, token_uri).is_none(),
+      self.all_tokens.insert(token) && self.token_uris.insert(token, token_uri.clone()).is_none(),
       CustomContractError::TokenIdAlreadyExists.into()
     );
 
@@ -478,30 +481,34 @@ fn contract_mint(
 
   // Parse the parameter.
   let params: MintParams = ctx.parameter_cursor().get()?;
-  let token_id = params.token;
-  let token_uri = params.token_uri;
+  for ((&token_id, owner), token_uri) in params
+    .tokens
+    .iter()
+    .zip(params.owners)
+    .zip(params.token_uris)
+  {
+    // Mint the token in the state.
+    let mint_count = state.mint(token_id, &owner, &token_uri, builder)?;
 
-  // Mint the token in the state.
-  let mint_count = state.mint(token_id, token_uri.clone(), &params.owner, builder)?;
-
-  // Event for minted NFT.
-  logger.log(&Cis2Event::Mint(MintEvent {
-    token_id,
-    amount: ContractTokenAmount::from(1),
-    owner: params.owner,
-  }))?;
-
-  // Metadata URL for the NFT.
-  // ADD COUNTER AND Timestamp
-  logger.log(&Cis2Event::TokenMetadata::<_, ContractTokenAmount>(
-    TokenMetadataEvent {
+    // Event for minted NFT.
+    logger.log(&Cis2Event::Mint(MintEvent {
       token_id,
-      metadata_url: MetadataUrl {
-        url: token_uri,
-        hash: None,
+      amount: ContractTokenAmount::from(1),
+      owner,
+    }))?;
+
+    // Metadata URL for the NFT.
+    // ADD COUNTER AND Timestamp
+    logger.log(&Cis2Event::TokenMetadata::<_, ContractTokenAmount>(
+      TokenMetadataEvent {
+        token_id,
+        metadata_url: MetadataUrl {
+          url: token_uri,
+          hash: None,
+        },
       },
-    },
-  ))?;
+    ))?;
+  }
 
   Ok(())
 }
@@ -900,7 +907,6 @@ fn contract_set_minter(ctx: &ReceiveContext, host: &mut Host<State>) -> Contract
   );
 
   let params: SetMinter = ctx.parameter_cursor().get()?;
-
   host.state_mut().set_minter(params.minter);
   Ok(())
 }
