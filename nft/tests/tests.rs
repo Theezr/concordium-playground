@@ -2,7 +2,7 @@
 use concordium_cis2::*;
 use concordium_smart_contract_testing::*;
 use concordium_std::concordium_test;
-use test_nft::*;
+use test_nft::{cis2::*, contract_view::*, init::*, mint::*};
 
 /// The tests accounts.
 const OWNER: AccountAddress = AccountAddress([1; 32]);
@@ -72,12 +72,12 @@ fn test_minting() {
   //   })
   //   .collect();
 
-  // println!("events: {:?}", events);
-
   let events = update.events().flat_map(|(_addr, events)| events);
   let events: Vec<Cis2Event<ContractTokenId, ContractTokenAmount>> = events
     .map(|e| e.parse().expect("Deserialize event"))
     .collect();
+
+  println!("events: {:?}", events);
 
   assert_eq!(
     events,
@@ -117,7 +117,7 @@ fn test_batch_minting() {
 
   // Check that the tokens are owned by Alice.
   let rv: ViewState = get_view_state(&chain, contract_address);
-  println!("rv: {:?}", rv);
+  // println!("rv: {:?}", rv);
 
   assert_eq!(
     rv.all_tokens[..],
