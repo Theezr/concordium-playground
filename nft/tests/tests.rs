@@ -11,7 +11,11 @@ const MINTER: AccountAddress = AccountAddress([2; 32]);
 const MINTER_ADDR: Address = Address::Account(MINTER);
 const USER: AccountAddress = AccountAddress([3; 32]);
 const USER_ADDR: Address = Address::Account(USER);
-const NEW_MINTER: AccountAddress = AccountAddress([4; 32]);
+const USER2: AccountAddress = AccountAddress([4; 32]);
+const USER2_ADDR: Address = Address::Account(USER2);
+const USER3: AccountAddress = AccountAddress([5; 32]);
+const USER3_ADDR: Address = Address::Account(USER3);
+const NEW_MINTER: AccountAddress = AccountAddress([6; 32]);
 
 /// Token IDs.
 const TOKEN_0: ContractTokenId = TokenIdU32(2);
@@ -40,7 +44,7 @@ fn test_minting() {
 
   // Check that the tokens are owned by Alice.
   let rv: ViewState = get_view_state(&chain, contract_address);
-  println!("rv: {:?}", rv);
+  // println!("rv: {:?}", rv);
 
   assert_eq!(rv.all_tokens[..], [TokenIdU32(2)]);
   assert_eq!(
@@ -92,6 +96,68 @@ fn test_minting() {
       }),
     ]
   );
+}
+
+#[concordium_test]
+fn test_batch_minting() {
+  let chain_timestamp = MINT_START + 1;
+  let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
+
+  let mint_params = MintParams {
+    owners: vec![USER_ADDR, USER2_ADDR, USER3_ADDR],
+    tokens: vec![TokenIdU32(2), TokenIdU32(20), TokenIdU32(200)],
+    token_uris: vec![
+      "ipfs://test".to_string(),
+      "ipfs://test1".to_string(),
+      "ipfs://test2".to_string(),
+    ],
+  };
+  let update =
+    mint_to_address(&mut chain, contract_address, mint_params, None, None).expect("Mint failed");
+
+  // Check that the tokens are owned by Alice.
+  let rv: ViewState = get_view_state(&chain, contract_address);
+  println!("rv: {:?}", rv);
+
+  assert_eq!(
+    rv.all_tokens[..],
+    [TokenIdU32(2), TokenIdU32(20), TokenIdU32(200)]
+  );
+  assert_eq!(
+    rv.state,
+    vec![
+      (
+        USER_ADDR,
+        ViewAddressState {
+          owned_tokens: vec![TokenIdU32(2)],
+          operators: Vec::new(),
+        }
+      ),
+      (
+        USER2_ADDR,
+        ViewAddressState {
+          owned_tokens: vec![TokenIdU32(20)],
+          operators: Vec::new(),
+        }
+      ),
+      (
+        USER3_ADDR,
+        ViewAddressState {
+          owned_tokens: vec![TokenIdU32(200)],
+          operators: Vec::new(),
+        }
+      )
+    ]
+  );
+  assert_eq!(
+    rv.mint_count,
+    vec![
+      (TokenIdU32(2), 1),
+      (TokenIdU32(20), 2),
+      (TokenIdU32(200), 3)
+    ]
+  );
+  assert_eq!(rv.counter, 3);
 }
 
 #[concordium_test]
