@@ -10,6 +10,8 @@ pub struct ViewAddressState {
 
 #[derive(Serialize, SchemaType, PartialEq, Eq, Debug)]
 pub struct ViewState {
+  pub name: String,
+  pub symbol: String,
   pub state: Vec<(Address, ViewAddressState)>,
   pub all_tokens: Vec<ContractTokenId>,
   pub token_uris: Vec<String>,
@@ -43,6 +45,8 @@ fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<Vie
   let mint_count = state.mint_count.iter().map(|(k, v)| (*k, *v)).collect();
 
   Ok(ViewState {
+    name: state.name.clone(),
+    symbol: state.symbol.clone(),
     state: inner_state,
     all_tokens,
     token_uris,

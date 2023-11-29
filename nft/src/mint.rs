@@ -78,11 +78,6 @@ fn contract_mint(
     // Mint the token in the state.
     let mint_count = state.mint(token_id, &owner, &token_uri, builder)?;
 
-    // logger.log(&MyCustomEvent {
-    //   message: "Minted token".to_string(),
-    //   value: mint_count,
-    // })?;
-
     // Event for minted NFT.
     logger.log(&ContractEvent::Mint(MintEvent {
       token_id,

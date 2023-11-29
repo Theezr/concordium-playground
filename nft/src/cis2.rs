@@ -406,6 +406,8 @@ fn contract_get_mint_count_token_id(
 
 #[derive(Serialize, SchemaType, Debug)]
 pub struct ViewSettings {
+  pub name: String,
+  pub symbol: String,
   pub minter: AccountAddress,
   pub mint_start: u64,
   pub mint_deadline: u64,
@@ -424,6 +426,8 @@ fn contract_view_settings(
   let state = host.state();
 
   Ok(ViewSettings {
+    name: state.name.clone(),
+    symbol: state.symbol.clone(),
     minter: state.minter,
     mint_start: state.mint_start,
     mint_deadline: state.mint_deadline,

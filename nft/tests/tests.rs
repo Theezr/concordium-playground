@@ -65,6 +65,9 @@ fn test_minting() {
       }
     )]
   );
+
+  assert_eq!(rv.name, NAME);
+  assert_eq!(rv.symbol, SYMBOL);
   assert_eq!(rv.mint_count, vec![(TokenIdU32(2), 1)]);
   assert_eq!(rv.counter, 1);
   assert_eq!(rv.mint_start, MINT_START);
