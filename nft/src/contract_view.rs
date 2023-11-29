@@ -10,11 +10,12 @@ pub struct ViewAddressState {
 
 #[derive(Serialize, SchemaType, PartialEq, Eq, Debug)]
 pub struct ViewState {
-  pub name: String,
-  pub symbol: String,
   pub state: Vec<(Address, ViewAddressState)>,
   pub all_tokens: Vec<ContractTokenId>,
   pub token_uris: Vec<String>,
+  pub name: String,
+  pub symbol: String,
+  pub contract_uri: MetadataUrl,
   pub counter: u32,
   pub mint_count: Vec<(ContractTokenId, u32)>,
   pub mint_start: u64,
@@ -23,7 +24,7 @@ pub struct ViewState {
 }
 
 /// View function that returns the entire contents of the state. Meant for
-/// testing.
+/// TESTING ONLY.
 #[receive(contract = "test_nft", name = "view", return_value = "ViewState")]
 fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<ViewState> {
   let state = host.state();
@@ -45,11 +46,12 @@ fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<Vie
   let mint_count = state.mint_count.iter().map(|(k, v)| (*k, *v)).collect();
 
   Ok(ViewState {
-    name: state.name.clone(),
-    symbol: state.symbol.clone(),
     state: inner_state,
     all_tokens,
     token_uris,
+    name: state.name.clone(),
+    symbol: state.symbol.clone(),
+    contract_uri: state.contract_uri.clone(),
     counter: state.counter,
     mint_count,
     mint_start: state.mint_start,

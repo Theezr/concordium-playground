@@ -9,6 +9,7 @@ use crate::{
 pub struct InitParams {
   pub name: String,
   pub symbol: String,
+  pub contract_uri: MetadataUrl,
   pub minter: AccountAddress,
   pub mint_start: u64,    // Unix milliseconds
   pub mint_deadline: u64, // Unix milliseconds
@@ -32,6 +33,7 @@ fn contract_init(
   logger.log(&ContractEvent::Deploy(DeployEvent {
     name: params.name.clone(),
     symbol: params.symbol.clone(),
+    contract_uri: params.contract_uri.clone(),
     minter: params.minter,
     mint_start: params.mint_start,
     mint_deadline: params.mint_deadline,

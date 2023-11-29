@@ -20,6 +20,7 @@ pub struct MintedEvent {
 pub struct DeployEvent {
   pub name: String,
   pub symbol: String,
+  pub contract_uri: MetadataUrl,
   pub minter: AccountAddress,
   pub mint_start: u64,
   pub mint_deadline: u64,
@@ -152,6 +153,7 @@ impl SchemaType for ContractEvent {
         schema::Fields::Named(vec![
           (String::from("name"), String::get_type()),
           (String::from("symbol"), String::get_type()),
+          (String::from("contract_uri"), MetadataUrl::get_type()),
           (String::from("minter"), Address::get_type()),
           (String::from("mint_start"), u64::get_type()),
           (String::from("mint_deadline"), u64::get_type()),

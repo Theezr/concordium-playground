@@ -6,8 +6,10 @@ use test_nft::{
   cis2::*,
   contract_view::*,
   events::{ContractEvent, DeployEvent, MintedEvent},
+  getters::*,
   init::*,
   mint::*,
+  setters::*,
 };
 
 /// The tests accounts.
@@ -68,6 +70,7 @@ fn test_minting() {
 
   assert_eq!(rv.name, NAME);
   assert_eq!(rv.symbol, SYMBOL);
+  assert_eq!(rv.contract_uri, get_contract_metadata());
   assert_eq!(rv.mint_count, vec![(TokenIdU32(2), 1)]);
   assert_eq!(rv.counter, 1);
   assert_eq!(rv.mint_start, MINT_START);
@@ -88,13 +91,6 @@ fn test_minting() {
         token_id: TokenIdU32(2),
         amount: TokenAmountU8(1),
         owner: USER_ADDR,
-      }),
-      ContractEvent::TokenMetadata(TokenMetadataEvent {
-        token_id: TokenIdU32(2),
-        metadata_url: MetadataUrl {
-          url: "ipfs://test".to_string(),
-          hash: None,
-        },
       }),
       ContractEvent::Minted(MintedEvent {
         token_id: TokenIdU32(2),
@@ -392,14 +388,6 @@ fn mint_to_address(
   update_result
 }
 
-fn c_mint_params(token: u32) -> MintParams {
-  MintParams {
-    owners: vec![USER_ADDR],
-    tokens: vec![TokenIdU32(token)],
-    token_uris: vec!["ipfs://test".to_string()],
-  }
-}
-
 /// Setup chain and contract.
 ///
 /// Also creates the two accounts, Alice and Bob.
@@ -426,6 +414,7 @@ fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress) {
   let params = InitParams {
     name: NAME.to_string(),
     symbol: SYMBOL.to_string(),
+    contract_uri: get_contract_metadata(),
     minter: MINTER,
     mint_start: MINT_START,
     mint_deadline: MINT_DEADLINE,
@@ -456,6 +445,7 @@ fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress) {
       ContractEvent::Deploy(DeployEvent {
         name: NAME.to_string(),
         symbol: SYMBOL.to_string(),
+        contract_uri: get_contract_metadata(),
         minter: MINTER,
         mint_start: MINT_START,
         mint_deadline: MINT_DEADLINE,
@@ -501,4 +491,19 @@ fn get_view_settings(chain: &Chain, contract_address: ContractAddress) -> ViewSe
     .expect("Invoke view");
 
   invoke.parse_return_value().expect("ViewState return value")
+}
+
+fn c_mint_params(token: u32) -> MintParams {
+  MintParams {
+    owners: vec![USER_ADDR],
+    tokens: vec![TokenIdU32(token)],
+    token_uris: vec!["ipfs://test".to_string()],
+  }
+}
+
+fn get_contract_metadata() -> MetadataUrl {
+  MetadataUrl {
+    url: "ipfs://contractURI".to_string(),
+    hash: None,
+  }
 }

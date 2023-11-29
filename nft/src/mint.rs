@@ -85,15 +85,15 @@ fn contract_mint(
       owner,
     }))?;
 
-    // Metadata URL for the NFT.
-    // ADD COUNTER AND Timestamp mayber REMOVE?
-    logger.log(&ContractEvent::TokenMetadata(TokenMetadataEvent {
-      token_id,
-      metadata_url: MetadataUrl {
-        url: token_uri.clone(),
-        hash: None,
-      },
-    }))?;
+    // // Metadata URL for the NFT.
+    // // ADD COUNTER AND Timestamp mayber REMOVE?
+    // logger.log(&ContractEvent::TokenMetadata(TokenMetadataEvent {
+    //   token_id,
+    //   metadata_url: MetadataUrl {
+    //     url: token_uri.clone(),
+    //     hash: None,
+    //   },
+    // }))?;
 
     // Event for minted NFT.
     logger.log(&ContractEvent::Minted(MintedEvent {

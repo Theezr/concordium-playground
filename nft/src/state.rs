@@ -32,8 +32,6 @@ impl AddressState {
 #[derive(Serial, DeserialWithState)]
 #[concordium(state_parameter = "S")]
 pub struct State<S = StateApi> {
-  pub name: String,
-  pub symbol: String,
   /// The state for each address.
   pub address_state: StateMap<Address, AddressState<S>, S>,
   /// All of the token IDs
@@ -43,6 +41,13 @@ pub struct State<S = StateApi> {
   /// Map with contract addresses providing implementations of additional
   /// standards.
   pub implementors: StateMap<StandardIdentifierOwned, Vec<ContractAddress>, S>,
+
+  /// Name of the contract
+  pub name: String,
+  /// Symbol of the contract
+  pub symbol: String,
+  /// Contract URI for metadata of the contract
+  pub contract_uri: MetadataUrl,
   /// address of the minter
   pub minter: AccountAddress,
   /// Counter of the mints
@@ -63,6 +68,7 @@ impl State {
     State {
       name: init_params.name,
       symbol: init_params.symbol,
+      contract_uri: init_params.contract_uri,
       address_state: state_builder.new_map(),
       all_tokens: state_builder.new_set(),
       token_uris: state_builder.new_map(),
