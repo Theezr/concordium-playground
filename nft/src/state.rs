@@ -32,8 +32,10 @@ impl AddressState {
 #[derive(Serial, DeserialWithState)]
 #[concordium(state_parameter = "S")]
 pub struct State<S = StateApi> {
+  pub name: String,
+  pub symbol: String,
   /// The state for each address.
-  pub state: StateMap<Address, AddressState<S>, S>,
+  pub address_state: StateMap<Address, AddressState<S>, S>,
   /// All of the token IDs
   pub all_tokens: StateSet<ContractTokenId, S>,
   /// Map with the tokenUris
@@ -59,7 +61,9 @@ impl State {
   /// Creates a new state with no tokens.
   pub fn init(state_builder: &mut StateBuilder, init_params: InitParams) -> Self {
     State {
-      state: state_builder.new_map(),
+      name: init_params.name,
+      symbol: init_params.symbol,
+      address_state: state_builder.new_map(),
       all_tokens: state_builder.new_set(),
       token_uris: state_builder.new_map(),
       implementors: state_builder.new_map(),
@@ -96,7 +100,7 @@ impl State {
     self.mint_count.insert(token, count);
 
     let mut owner_state = self
-      .state
+      .address_state
       .entry(*owner)
       .or_insert_with(|| AddressState::empty(state_builder));
 
@@ -122,7 +126,7 @@ impl State {
   ) -> ContractResult<ContractTokenAmount> {
     ensure!(self.contains_token(token_id), ContractError::InvalidTokenId);
     let balance = self
-      .state
+      .address_state
       .get(address)
       .map(|address_state| u8::from(address_state.owned_tokens.contains(token_id)))
       .unwrap_or(0);
@@ -132,7 +136,7 @@ impl State {
   /// Check if a given address is an operator of a given owner address.
   pub fn is_operator(&self, address: &Address, owner: &Address) -> bool {
     self
-      .state
+      .address_state
       .get(owner)
       .map(|address_state| address_state.operators.contains(address))
       .unwrap_or(false)
@@ -161,7 +165,7 @@ impl State {
 
     {
       let mut from_address_state = self
-        .state
+        .address_state
         .get_mut(from)
         .ok_or(ContractError::InsufficientFunds)?;
       // Find and remove the token from the owner, if nothing is removed, we know the
@@ -172,7 +176,7 @@ impl State {
 
     // Add the token to the new owner.
     let mut to_address_state = self
-      .state
+      .address_state
       .entry(*to)
       .or_insert_with(|| AddressState::empty(state_builder));
     to_address_state.owned_tokens.insert(*token_id);
@@ -189,7 +193,7 @@ impl State {
     state_builder: &mut StateBuilder,
   ) {
     let mut owner_state: OccupiedEntry<'_, Address, AddressState, ExternStateApi> = self
-      .state
+      .address_state
       .entry(*owner)
       .or_insert_with(|| AddressState::empty(state_builder));
     owner_state.operators.insert(*operator);
@@ -198,9 +202,12 @@ impl State {
   /// Update the state removing an operator for a given address.
   /// Succeeds even if the `operator` is _not_ an operator for the `address`.
   pub fn remove_operator(&mut self, owner: &Address, operator: &Address) {
-    self.state.entry(*owner).and_modify(|address_state| {
-      address_state.operators.remove(operator);
-    });
+    self
+      .address_state
+      .entry(*owner)
+      .and_modify(|address_state| {
+        address_state.operators.remove(operator);
+      });
   }
 
   /// Check if state contains any implementors for a given standard.

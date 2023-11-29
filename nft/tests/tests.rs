@@ -5,7 +5,7 @@ use concordium_std::concordium_test;
 use test_nft::{
   cis2::*,
   contract_view::*,
-  events::{ContractEvent, MintedEvent},
+  events::{ContractEvent, DeployEvent, MintedEvent},
   init::*,
   mint::*,
 };
@@ -33,6 +33,8 @@ const ACC_INITIAL_BALANCE: Amount = Amount::from_ccd(10000);
 /// A signer for all the transactions.
 const SIGNER: Signer = Signer::with_one_key();
 
+const NAME: &str = "test nft contract";
+const SYMBOL: &str = "TST";
 const MINT_START: u64 = 100;
 const MINT_DEADLINE: u64 = 1000;
 const MAX_TOTAL_SUPPLY: u32 = 10;
@@ -69,21 +71,12 @@ fn test_minting() {
   assert_eq!(rv.mint_deadline, MINT_DEADLINE);
   assert_eq!(rv.max_total_supply, MAX_TOTAL_SUPPLY);
 
-  // For testing later
-  // let events = update.events().flat_map(|(_addr, events)| events);
-  // let events: Vec<Event> = events
-  //   .map(|e| match e.parse() {
-  //     Ok(event) => Event::Cis2Event(event),
-  //     Err(_) => Event::LogEvent(LogEvent::new(e.to_string())),
-  //   })
-  //   .collect();
-
   let events = update.events().flat_map(|(_addr, events)| events);
   let events: Vec<ContractEvent> = events
     .map(|e| e.parse().expect("Deserialize event"))
     .collect();
 
-  println!("events: {:?}", events);
+  // println!("events: {:?}", events);
 
   assert_eq!(
     events,
@@ -127,8 +120,7 @@ fn test_batch_minting() {
       "ipfs://test2".to_string(),
     ],
   };
-  let update =
-    mint_to_address(&mut chain, contract_address, mint_params, None, None).expect("Mint failed");
+  mint_to_address(&mut chain, contract_address, mint_params, None, None).expect("Mint failed");
 
   // Check that the tokens are owned by Alice.
   let rv: ViewState = get_view_state(&chain, contract_address);
@@ -429,6 +421,8 @@ fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress) {
     .expect("Deploy valid module");
 
   let params = InitParams {
+    name: NAME.to_string(),
+    symbol: SYMBOL.to_string(),
     minter: MINTER,
     mint_start: MINT_START,
     mint_deadline: MINT_DEADLINE,
@@ -449,6 +443,23 @@ fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress) {
       },
     )
     .expect("Initialize contract");
+
+  for event in init.events {
+    let contract_event = event.parse::<ContractEvent>().expect("Deserialize event");
+    // println!("Event: {:?}", contract_event);
+
+    assert_eq!(
+      contract_event,
+      ContractEvent::Deploy(DeployEvent {
+        name: NAME.to_string(),
+        symbol: SYMBOL.to_string(),
+        minter: MINTER,
+        mint_start: MINT_START,
+        mint_deadline: MINT_DEADLINE,
+        max_total_supply: MAX_TOTAL_SUPPLY,
+      })
+    );
+  }
 
   (chain, init.contract_address)
 }

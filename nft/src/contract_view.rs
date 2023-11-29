@@ -27,7 +27,7 @@ fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<Vie
   let state = host.state();
 
   let mut inner_state = Vec::new();
-  for (k, a_state) in state.state.iter() {
+  for (k, a_state) in state.address_state.iter() {
     let owned_tokens = a_state.owned_tokens.iter().map(|x| *x).collect();
     let operators = a_state.operators.iter().map(|x| *x).collect();
     inner_state.push((

@@ -16,15 +16,27 @@ pub struct MintedEvent {
   pub token_uri: MetadataUrl,
 }
 
+#[derive(Debug, Deserial, PartialEq, Eq, Serial, SchemaType)]
+pub struct DeployEvent {
+  pub name: String,
+  pub symbol: String,
+  pub minter: AccountAddress,
+  pub mint_start: u64,
+  pub mint_deadline: u64,
+  pub max_total_supply: u32,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ContractEvent {
   Mint(MintEvent),
   TokenMetadata(TokenMetadataEvent),
   Transfer(TransferEvent),
   Minted(MintedEvent),
+  Deploy(DeployEvent),
 }
 
 const MINTED_EVENT_TAG: u8 = u8::MIN;
+const DEPLOY_EVENT_TAG: u8 = u8::MIN + 1;
 
 impl Serial for ContractEvent {
   fn serial<W: Write>(&self, out: &mut W) -> Result<(), W::Err> {
@@ -43,6 +55,10 @@ impl Serial for ContractEvent {
       }
       ContractEvent::Minted(event) => {
         out.write_u8(MINTED_EVENT_TAG)?;
+        event.serial(out)
+      }
+      ContractEvent::Deploy(event) => {
+        out.write_u8(DEPLOY_EVENT_TAG)?;
         event.serial(out)
       }
     }
@@ -71,6 +87,10 @@ impl Deserial for ContractEvent {
       MINTED_EVENT_TAG => {
         let event = MintedEvent::deserial(source)?;
         Ok(ContractEvent::Minted(event))
+      }
+      DEPLOY_EVENT_TAG => {
+        let event = DeployEvent::deserial(source)?;
+        Ok(ContractEvent::Deploy(event))
       }
       _ => Err(ParseError::default()),
     }
@@ -122,6 +142,20 @@ impl SchemaType for ContractEvent {
           (String::from("mint_count"), MintCountTokenID::get_type()),
           (String::from("timestamp"), u64::get_type()),
           (String::from("token_uri"), MetadataUrl::get_type()),
+        ]),
+      ),
+    );
+    event_map.insert(
+      DEPLOY_EVENT_TAG,
+      (
+        "Deploy".to_string(),
+        schema::Fields::Named(vec![
+          (String::from("name"), String::get_type()),
+          (String::from("symbol"), String::get_type()),
+          (String::from("minter"), Address::get_type()),
+          (String::from("mint_start"), u64::get_type()),
+          (String::from("mint_deadline"), u64::get_type()),
+          (String::from("max_total_supply"), u32::get_type()),
         ]),
       ),
     );
