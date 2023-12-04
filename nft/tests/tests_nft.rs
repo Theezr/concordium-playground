@@ -1,4 +1,9 @@
 //! Tests for the `test_nft` contract.
+mod helpers;
+
+use helpers::functions::*;
+use helpers::init::*;
+
 use concordium_cis2::*;
 use concordium_smart_contract_testing::*;
 use concordium_std::concordium_test;
@@ -6,41 +11,11 @@ use test_nft::{
   cis2::*,
   contract_view::*,
   error::{ContractError, CustomContractError},
-  events::{ContractEvent, DeployEvent, MintedEvent},
+  events::{ContractEvent, MintedEvent},
   getters::*,
-  init::*,
   mint::*,
   setters::*,
 };
-
-/// The tests accounts.
-const OWNER: AccountAddress = AccountAddress([1; 32]);
-const OWNER_ADDR: Address = Address::Account(OWNER);
-const MINTER: AccountAddress = AccountAddress([2; 32]);
-const MINTER_ADDR: Address = Address::Account(MINTER);
-const USER: AccountAddress = AccountAddress([3; 32]);
-const USER_ADDR: Address = Address::Account(USER);
-const USER2: AccountAddress = AccountAddress([4; 32]);
-const USER2_ADDR: Address = Address::Account(USER2);
-const USER3: AccountAddress = AccountAddress([5; 32]);
-const USER3_ADDR: Address = Address::Account(USER3);
-const NEW_MINTER: AccountAddress = AccountAddress([6; 32]);
-
-/// Token IDs.
-const TOKEN_0: ContractTokenId = TokenIdU32(2);
-const TOKEN_1: ContractTokenId = TokenIdU32(42);
-
-/// Initial balance of the accounts.
-const ACC_INITIAL_BALANCE: Amount = Amount::from_ccd(10000);
-
-/// A signer for all the transactions.
-const SIGNER: Signer = Signer::with_one_key();
-
-const NAME: &str = "test nft contract";
-const SYMBOL: &str = "TST";
-const MINT_START: u64 = 100;
-const MINT_DEADLINE: u64 = 1000;
-const MAX_TOTAL_SUPPLY: u32 = 10;
 
 /// Test minting succeeds and the tokens are owned by the given address and
 /// the appropriate events are logged.
@@ -248,12 +223,14 @@ fn test_mint_should_fail_when_minting_not_started() {
   let chain_timestamp = MINT_START - 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
-  let update_result =
-    mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None).unwrap_err();
+  let update = mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None)
+    .expect_err("Call didnt fail");
 
-  let returned_contract_error: ContractError = update_result.parse_return_value().unwrap();
+  let rv: ContractError = update
+    .parse_return_value()
+    .expect("ContractError return value");
   assert_eq!(
-    returned_contract_error,
+    rv,
     Cis2Error::Custom(CustomContractError::MintingNotStarted)
   );
 }
@@ -263,12 +240,14 @@ fn test_mint_should_fail_when_mint_deadline_reached() {
   let chain_timestamp = MINT_DEADLINE + 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
-  let update_result =
-    mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None).unwrap_err();
+  let update = mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None)
+    .expect_err("Call didnt fail");
 
-  let returned_contract_error: ContractError = update_result.parse_return_value().unwrap();
+  let rv: ContractError = update
+    .parse_return_value()
+    .expect("ContractError return value");
   assert_eq!(
-    returned_contract_error,
+    rv,
     Cis2Error::Custom(CustomContractError::MintDeadlineReached)
   );
 }
@@ -284,10 +263,13 @@ fn test_mint_should_fail_when_max_supply_reached() {
     if i <= MAX_TOTAL_SUPPLY {
       assert!(update_result.is_ok(), "Call didnt succeed");
     } else {
-      let unwrap = update_result.unwrap_err();
-      let returned_contract_error: ContractError = unwrap.parse_return_value().unwrap();
+      let update = update_result.expect_err("Call didnt fail");
+
+      let rv: ContractError = update
+        .parse_return_value()
+        .expect("ContractError return value");
       assert_eq!(
-        returned_contract_error,
+        rv,
         Cis2Error::Custom(CustomContractError::MaxTotalSupplyReached)
       );
     }
@@ -315,7 +297,7 @@ fn test_mint_should_fail_when_not_minter() {
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
   // Mint two tokens to Alice.
-  let update_result = chain
+  let update = chain
     .contract_update(
       SIGNER,
       USER,
@@ -328,10 +310,12 @@ fn test_mint_should_fail_when_not_minter() {
         message: OwnedParameter::from_serial(&c_mint_params(2)).expect("Mint params"),
       },
     )
-    .unwrap_err();
+    .expect_err("Transfer tokens");
 
-  let returned_contract_error: ContractError = update_result.parse_return_value().unwrap();
-  assert_eq!(returned_contract_error, ContractError::Unauthorized);
+  let rv: ContractError = update
+    .parse_return_value()
+    .expect("ContractError return value");
+  assert_eq!(rv, ContractError::Unauthorized);
 }
 
 #[concordium_test]
@@ -378,151 +362,4 @@ fn test_owner_should_be_able_to_set_minter() {
 
   let contract_settings = get_view_settings(&chain, contract_address);
   assert_eq!(contract_settings.minter, new_minter_params.minter);
-}
-
-// Helper function that mints a token to the given address.
-fn mint_to_address(
-  chain: &mut Chain,
-  contract_address: ContractAddress,
-  mint_params: MintParams,
-  invoker: Option<AccountAddress>,
-  sender: Option<Address>,
-) -> Result<ContractInvokeSuccess, ContractInvokeError> {
-  let invoker = invoker.unwrap_or(MINTER);
-  let sender = sender.unwrap_or(MINTER_ADDR);
-
-  let update_result = chain.contract_update(
-    SIGNER,
-    invoker,
-    sender,
-    Energy::from(10000),
-    UpdateContractPayload {
-      amount: Amount::zero(),
-      receive_name: OwnedReceiveName::new_unchecked("test_nft.mint".to_string()),
-      address: contract_address,
-      message: OwnedParameter::from_serial(&mint_params).expect("Mint params"),
-    },
-  );
-
-  update_result
-}
-
-/// Setup chain and contract.
-///
-/// Also creates the two accounts, Alice and Bob.
-///
-/// Alice is the owner of the contract.
-fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress) {
-  let mut chain = Chain::builder()
-    .block_time(Timestamp::from_timestamp_millis(timestamp))
-    .build()
-    .unwrap();
-
-  // Create some accounts accounts on the chain.
-  chain.create_account(Account::new(OWNER, ACC_INITIAL_BALANCE));
-  chain.create_account(Account::new(MINTER, ACC_INITIAL_BALANCE));
-  chain.create_account(Account::new(USER, ACC_INITIAL_BALANCE));
-  chain.create_account(Account::new(NEW_MINTER, ACC_INITIAL_BALANCE));
-
-  // Load and deploy the module.
-  let module = module_load_v1("nft_test.wasm.v1").expect("Module exists");
-  let deployment = chain
-    .module_deploy_v1(SIGNER, OWNER, module)
-    .expect("Deploy valid module");
-
-  let params = InitParams {
-    name: NAME.to_string(),
-    symbol: SYMBOL.to_string(),
-    contract_uri: get_contract_metadata(),
-    minter: MINTER,
-    mint_start: MINT_START,
-    mint_deadline: MINT_DEADLINE,
-    max_total_supply: MAX_TOTAL_SUPPLY,
-  };
-
-  // Initialize the auction contract.
-  let init = chain
-    .contract_init(
-      SIGNER,
-      OWNER,
-      Energy::from(10000),
-      InitContractPayload {
-        amount: Amount::zero(),
-        mod_ref: deployment.module_reference,
-        init_name: OwnedContractName::new_unchecked("init_test_nft".to_string()),
-        param: OwnedParameter::from_serial(&params).expect("Init params"),
-      },
-    )
-    .expect("Initialize contract");
-
-  for event in init.events {
-    let contract_event = event.parse::<ContractEvent>().expect("Deserialize event");
-    // println!("Event: {:?}", contract_event);
-
-    assert_eq!(
-      contract_event,
-      ContractEvent::Deploy(DeployEvent {
-        name: NAME.to_string(),
-        symbol: SYMBOL.to_string(),
-        contract_uri: get_contract_metadata(),
-        minter: MINTER,
-        mint_start: MINT_START,
-        mint_deadline: MINT_DEADLINE,
-        max_total_supply: MAX_TOTAL_SUPPLY,
-      })
-    );
-  }
-
-  (chain, init.contract_address)
-}
-
-fn get_view_state(chain: &Chain, contract_address: ContractAddress) -> ViewState {
-  let invoke = chain
-    .contract_invoke(
-      OWNER,
-      OWNER_ADDR,
-      Energy::from(10000),
-      UpdateContractPayload {
-        amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.view".to_string()),
-        address: contract_address,
-        message: OwnedParameter::empty(),
-      },
-    )
-    .expect("Invoke view");
-
-  invoke.parse_return_value().expect("ViewState return value")
-}
-
-fn get_view_settings(chain: &Chain, contract_address: ContractAddress) -> ViewSettings {
-  let invoke = chain
-    .contract_invoke(
-      OWNER,
-      OWNER_ADDR,
-      Energy::from(10000),
-      UpdateContractPayload {
-        amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.viewSettings".to_string()),
-        address: contract_address,
-        message: OwnedParameter::empty(),
-      },
-    )
-    .expect("Invoke view");
-
-  invoke.parse_return_value().expect("ViewState return value")
-}
-
-fn c_mint_params(token: u32) -> MintParams {
-  MintParams {
-    owners: vec![USER_ADDR],
-    tokens: vec![TokenIdU32(token)],
-    token_uris: vec!["ipfs://test".to_string()],
-  }
-}
-
-fn get_contract_metadata() -> MetadataUrl {
-  MetadataUrl {
-    url: "ipfs://contractURI".to_string(),
-    hash: None,
-  }
 }
