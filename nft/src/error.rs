@@ -1,4 +1,4 @@
-use concordium_cis2::Cis2Error;
+use concordium_cis2::{Cis2ClientError, Cis2Error};
 use concordium_std::*;
 
 /// The custom errors the contract can produce.
@@ -21,6 +21,8 @@ pub enum CustomContractError {
   MintDeadlineReached,
   /// Max total supply is reached
   MaxTotalSupplyReached,
+  /// Error returned by the CIS2 Client while performing certain operations
+  Cis2ClientError,
 }
 
 /// Wrapping the custom errors in a type with CIS2 errors.
@@ -49,5 +51,11 @@ impl<T> From<CallContractError<T>> for CustomContractError {
 impl From<CustomContractError> for ContractError {
   fn from(c: CustomContractError) -> Self {
     Cis2Error::Custom(c)
+  }
+}
+
+impl<T> From<Cis2ClientError<T>> for CustomContractError {
+  fn from(_: Cis2ClientError<T>) -> Self {
+    CustomContractError::Cis2ClientError
   }
 }

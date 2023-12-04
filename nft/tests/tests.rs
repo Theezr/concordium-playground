@@ -5,6 +5,7 @@ use concordium_std::concordium_test;
 use test_nft::{
   cis2::*,
   contract_view::*,
+  error::{ContractError, CustomContractError},
   events::{ContractEvent, DeployEvent, MintedEvent},
   getters::*,
   init::*,
@@ -247,9 +248,14 @@ fn test_mint_should_fail_when_minting_not_started() {
   let chain_timestamp = MINT_START - 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
-  let update_result = mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None);
+  let update_result =
+    mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None).unwrap_err();
 
-  assert!(update_result.is_err(), "Call didnt fail");
+  let returned_contract_error: ContractError = update_result.parse_return_value().unwrap();
+  assert_eq!(
+    returned_contract_error,
+    Cis2Error::Custom(CustomContractError::MintingNotStarted)
+  );
 }
 
 #[concordium_test]
@@ -257,9 +263,14 @@ fn test_mint_should_fail_when_mint_deadline_reached() {
   let chain_timestamp = MINT_DEADLINE + 1;
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
-  let update_result = mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None);
+  let update_result =
+    mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None).unwrap_err();
 
-  assert!(update_result.is_err(), "Call didnt fail");
+  let returned_contract_error: ContractError = update_result.parse_return_value().unwrap();
+  assert_eq!(
+    returned_contract_error,
+    Cis2Error::Custom(CustomContractError::MintDeadlineReached)
+  );
 }
 
 #[concordium_test]
@@ -273,7 +284,12 @@ fn test_mint_should_fail_when_max_supply_reached() {
     if i <= MAX_TOTAL_SUPPLY {
       assert!(update_result.is_ok(), "Call didnt succeed");
     } else {
-      assert!(update_result.is_err(), "Call didnt fail");
+      let unwrap = update_result.unwrap_err();
+      let returned_contract_error: ContractError = unwrap.parse_return_value().unwrap();
+      assert_eq!(
+        returned_contract_error,
+        Cis2Error::Custom(CustomContractError::MaxTotalSupplyReached)
+      );
     }
   }
   // Handle update_result...
@@ -299,19 +315,23 @@ fn test_mint_should_fail_when_not_minter() {
   let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
 
   // Mint two tokens to Alice.
-  let update_result = chain.contract_update(
-    SIGNER,
-    USER,
-    USER_ADDR,
-    Energy::from(10000),
-    UpdateContractPayload {
-      amount: Amount::zero(),
-      receive_name: OwnedReceiveName::new_unchecked("test_nft.mint".to_string()),
-      address: contract_address,
-      message: OwnedParameter::from_serial(&c_mint_params(2)).expect("Mint params"),
-    },
-  );
-  assert!(update_result.is_err(), "Call didnt fail");
+  let update_result = chain
+    .contract_update(
+      SIGNER,
+      USER,
+      USER_ADDR,
+      Energy::from(10000),
+      UpdateContractPayload {
+        amount: Amount::zero(),
+        receive_name: OwnedReceiveName::new_unchecked("test_nft.mint".to_string()),
+        address: contract_address,
+        message: OwnedParameter::from_serial(&c_mint_params(2)).expect("Mint params"),
+      },
+    )
+    .unwrap_err();
+
+  let returned_contract_error: ContractError = update_result.parse_return_value().unwrap();
+  assert_eq!(returned_contract_error, ContractError::Unauthorized);
 }
 
 #[concordium_test]
@@ -360,7 +380,7 @@ fn test_owner_should_be_able_to_set_minter() {
   assert_eq!(contract_settings.minter, new_minter_params.minter);
 }
 
-/// Helper function that sets up the contract with two tokens minted to the given recipient
+// Helper function that mints a token to the given address.
 fn mint_to_address(
   chain: &mut Chain,
   contract_address: ContractAddress,
@@ -371,7 +391,6 @@ fn mint_to_address(
   let invoker = invoker.unwrap_or(MINTER);
   let sender = sender.unwrap_or(MINTER_ADDR);
 
-  // Mint two tokens to Alice.
   let update_result = chain.contract_update(
     SIGNER,
     invoker,

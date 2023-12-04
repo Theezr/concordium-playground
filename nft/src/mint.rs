@@ -56,7 +56,6 @@ fn contract_mint(
   let sender = ctx.sender();
   let minter = state.minter;
   ensure!(sender.matches_account(&minter), ContractError::Unauthorized);
-  // Get the sender of the transaction
   let block_time: u64 = ctx.metadata().block_time().timestamp_millis();
   ensure!(
     block_time >= state.mint_start,
