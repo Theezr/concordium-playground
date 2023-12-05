@@ -1,5 +1,5 @@
 [package]
-name = "test_nft"
+name = "ciphers_nft"
 version = "0.1.0"
 authors = [ "Theezr <nickvanrossenberg@hotmail.com>" ]
 edition = "2021"

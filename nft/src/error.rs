@@ -21,6 +21,8 @@ pub enum CustomContractError {
   MintDeadlineReached,
   /// Max total supply is reached
   MaxTotalSupplyReached,
+  /// Tokens, owners or URIs arrays are not of the same length
+  ArraysNotSameLength,
   /// Error returned by the CIS2 Client while performing certain operations
   Cis2ClientError,
 }

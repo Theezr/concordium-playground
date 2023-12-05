@@ -18,7 +18,7 @@ pub struct InitParams {
 
 /// Initialize contract instance with no token types initially.
 #[init(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   parameter = "InitParams",
   event = "ContractEvent",
   enable_logger

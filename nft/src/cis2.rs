@@ -73,7 +73,7 @@ type TransferParameter = TransferParams<ContractTokenId, ContractTokenAmount>;
 /// - Fails to log event.
 /// - Any of the receive hook function calls rejects.
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "transfer",
   parameter = "TransferParameter",
   error = "ContractError",
@@ -142,7 +142,7 @@ fn contract_transfer(
 /// - It fails to parse the parameter.
 /// - Fails to log event.
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "updateOperator",
   parameter = "UpdateOperatorParams",
   error = "ContractError",
@@ -185,7 +185,7 @@ fn contract_update_operator(
 /// It rejects if:
 /// - It fails to parse the parameter.
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "operatorOf",
   parameter = "OperatorOfQueryParams",
   return_value = "OperatorOfQueryResponse",
@@ -221,7 +221,7 @@ type ContractBalanceOfQueryResponse = BalanceOfQueryResponse<ContractTokenAmount
 /// - It fails to parse the parameter.
 /// - Any of the queried `token_id` does not exist.
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "balanceOf",
   parameter = "ContractBalanceOfQueryParams",
   return_value = "ContractBalanceOfQueryResponse",
@@ -254,7 +254,7 @@ pub type ContractTokenMetadataQueryParams = TokenMetadataQueryParams<ContractTok
 /// - It fails to parse the parameter.
 /// - Any of the queried `token_id` does not exist.
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "tokenMetadata",
   parameter = "ContractTokenMetadataQueryParams",
   return_value = "TokenMetadataQueryResponse",
@@ -296,7 +296,7 @@ fn contract_token_metadata(
 /// It rejects if:
 /// - It fails to parse the parameter.
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "supports",
   parameter = "SupportsQueryParams",
   return_value = "SupportsQueryResponse",
@@ -329,7 +329,7 @@ fn contract_supports(
 /// - Sender is not the owner of the contract instance.
 /// - It fails to parse the parameter.
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "setImplementors",
   parameter = "SetImplementorsParams",
   error = "ContractError",

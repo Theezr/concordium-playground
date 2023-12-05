@@ -25,7 +25,7 @@ pub struct ViewState {
 
 /// View function that returns the entire contents of the state. Meant for
 /// TESTING ONLY.
-#[receive(contract = "test_nft", name = "view", return_value = "ViewState")]
+#[receive(contract = "ciphers_nft", name = "view", return_value = "ViewState")]
 fn contract_view(_ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<ViewState> {
   let state = host.state();
 

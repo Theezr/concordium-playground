@@ -1,7 +1,7 @@
-//! Tests for the `test_nft` contract.
+//! Tests for the `ciphers_nft` contract.
+use ciphers_nft::cis2::*;
 use concordium_cis2::*;
 use concordium_smart_contract_testing::*;
-use test_nft::cis2::*;
 
 pub const OWNER: AccountAddress = AccountAddress([1; 32]);
 pub const OWNER_ADDR: Address = Address::Account(OWNER);

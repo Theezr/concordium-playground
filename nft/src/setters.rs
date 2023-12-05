@@ -11,7 +11,7 @@ pub struct SetMinter {
 }
 
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "setMinter",
   parameter = "SetMinter",
   error = "ContractError",

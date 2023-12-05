@@ -40,7 +40,7 @@ pub struct MintParams {
 /// Note: Can at most mint 32 token types in one call due to the limit on the
 /// number of logs a smart contract can produce on each function call.
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "mint",
   parameter = "MintParams",
   error = "ContractError",
@@ -68,6 +68,10 @@ fn contract_mint(
 
   // Parse the parameter.
   let params: MintParams = ctx.parameter_cursor().get()?;
+  ensure!(
+    params.owners.len() == params.tokens.len() && params.owners.len() == params.token_uris.len(),
+    CustomContractError::ArraysNotSameLength.into()
+  );
   for ((&token_id, owner), token_uri) in params
     .tokens
     .iter()

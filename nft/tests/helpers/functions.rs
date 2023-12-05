@@ -1,13 +1,13 @@
-//! Tests for the `test_nft` contract.
-use concordium_cis2::*;
-use concordium_smart_contract_testing::*;
-use test_nft::{
+//! Tests for the `ciphers_nft` contract.
+use ciphers_nft::{
   contract_view::*,
   events::{ContractEvent, DeployEvent},
   getters::*,
   init::InitParams,
   mint::*,
 };
+use concordium_cis2::*;
+use concordium_smart_contract_testing::*;
 
 use super::init::*;
 
@@ -29,7 +29,7 @@ pub fn mint_to_address(
     Energy::from(10000),
     UpdateContractPayload {
       amount: Amount::zero(),
-      receive_name: OwnedReceiveName::new_unchecked("test_nft.mint".to_string()),
+      receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.mint".to_string()),
       address: contract_address,
       message: OwnedParameter::from_serial(&mint_params).expect("Mint params"),
     },
@@ -39,10 +39,6 @@ pub fn mint_to_address(
 }
 
 /// Setup chain and contract.
-///
-/// Also creates the two accounts, Alice and Bob.
-///
-/// Alice is the owner of the contract.
 pub fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress) {
   let mut chain = Chain::builder()
     .block_time(Timestamp::from_timestamp_millis(timestamp))
@@ -58,7 +54,7 @@ pub fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress)
   chain.create_account(Account::new(NEW_MINTER, ACC_INITIAL_BALANCE));
 
   // Load and deploy the module.
-  let module = module_load_v1("nft_test.wasm.v1").expect("Module exists");
+  let module = module_load_v1("ciphers_nft.wasm.v1").expect("Module exists");
   let deployment = chain
     .module_deploy_v1(SIGNER, OWNER, module)
     .expect("Deploy valid module");
@@ -82,7 +78,7 @@ pub fn initialize_chain_and_contract(timestamp: u64) -> (Chain, ContractAddress)
       InitContractPayload {
         amount: Amount::zero(),
         mod_ref: deployment.module_reference,
-        init_name: OwnedContractName::new_unchecked("init_test_nft".to_string()),
+        init_name: OwnedContractName::new_unchecked("init_ciphers_nft".to_string()),
         param: OwnedParameter::from_serial(&params).expect("Init params"),
       },
     )
@@ -117,7 +113,7 @@ pub fn get_view_state(chain: &Chain, contract_address: ContractAddress) -> ViewS
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.view".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.view".to_string()),
         address: contract_address,
         message: OwnedParameter::empty(),
       },
@@ -136,7 +132,7 @@ pub fn get_view_settings(chain: &Chain, contract_address: ContractAddress) -> Vi
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.viewSettings".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.viewSettings".to_string()),
         address: contract_address,
         message: OwnedParameter::empty(),
       },

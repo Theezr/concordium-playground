@@ -1,14 +1,14 @@
-//! Tests for the `test_nft` contract.
+//! Tests for the `ciphers_nft` contract.
 mod helpers;
 
 use helpers::functions::*;
 use helpers::init::*;
 
+use ciphers_nft::error::ContractError;
+use ciphers_nft::{contract_view::*, mint::*};
 use concordium_cis2::*;
 use concordium_smart_contract_testing::*;
 use concordium_std::concordium_test;
-use test_nft::error::ContractError;
-use test_nft::{contract_view::*, mint::*};
 
 /// Test regular transfer where sender is the owner.
 #[concordium_test]
@@ -40,7 +40,7 @@ fn test_account_transfer() {
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.transfer".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.transfer".to_string()),
         address: contract_address,
         message: OwnedParameter::from_serial(&transfer_params).expect("Transfer params"),
       },
@@ -112,7 +112,7 @@ fn test_operator_can_transfer() {
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.updateOperator".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.updateOperator".to_string()),
         address: contract_address,
         message: OwnedParameter::from_serial(&params).expect("UpdateOperator params"),
       },
@@ -136,7 +136,7 @@ fn test_operator_can_transfer() {
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.transfer".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.transfer".to_string()),
         address: contract_address,
         message: OwnedParameter::from_serial(&transfer_params).expect("Transfer params"),
       },
@@ -151,7 +151,7 @@ fn test_operator_can_transfer() {
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.view".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.view".to_string()),
         address: contract_address,
         message: OwnedParameter::empty(),
       },
@@ -213,7 +213,7 @@ fn test_unauthorized_sender() {
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.transfer".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.transfer".to_string()),
         address: contract_address,
         message: OwnedParameter::from_serial(&transfer_params).expect("Transfer params"),
       },

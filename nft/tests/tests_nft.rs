@@ -1,13 +1,10 @@
-//! Tests for the `test_nft` contract.
+//! Tests for the `ciphers_nft` contract.
 mod helpers;
 
 use helpers::functions::*;
 use helpers::init::*;
 
-use concordium_cis2::*;
-use concordium_smart_contract_testing::*;
-use concordium_std::concordium_test;
-use test_nft::{
+use ciphers_nft::{
   cis2::*,
   contract_view::*,
   error::{ContractError, CustomContractError},
@@ -16,6 +13,9 @@ use test_nft::{
   mint::*,
   setters::*,
 };
+use concordium_cis2::*;
+use concordium_smart_contract_testing::*;
+use concordium_std::concordium_test;
 
 /// Test minting succeeds and the tokens are owned by the given address and
 /// the appropriate events are logged.
@@ -28,7 +28,6 @@ fn test_minting() {
   let update = mint_to_address(&mut chain, contract_address, c_mint_params(2), None, None)
     .expect("Mint failed");
 
-  // Check that the tokens are owned by Alice.
   let rv: ViewState = get_view_state(&chain, contract_address);
   // println!("rv: {:?}", rv);
 
@@ -97,7 +96,6 @@ fn test_batch_minting() {
   };
   mint_to_address(&mut chain, contract_address, mint_params, None, None).expect("Mint failed");
 
-  // Check that the tokens are owned by Alice.
   let rv: ViewState = get_view_state(&chain, contract_address);
   // println!("rv: {:?}", rv);
 
@@ -159,7 +157,7 @@ fn test_token_metadata_on_mint() {
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.tokenMetadata".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.tokenMetadata".to_string()),
         address: contract_address,
         message: OwnedParameter::from_serial(&token_ids).expect("tokenIds params"),
       },
@@ -201,7 +199,9 @@ fn test_get_mint_count_token_id() {
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.getMintCountTokenID".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked(
+          "ciphers_nft.getMintCountTokenID".to_string(),
+        ),
         address: contract_address,
         message: OwnedParameter::from_serial(&token_ids).expect("tokenIds params"),
       },
@@ -274,7 +274,33 @@ fn test_mint_should_fail_when_max_supply_reached() {
       );
     }
   }
-  // Handle update_result...
+}
+
+#[concordium_test]
+fn test_mint_should_fail_when_arrays_not_equal() {
+  let chain_timestamp = MINT_START + 1;
+  let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
+
+  let mint_params = MintParams {
+    owners: vec![USER_ADDR, USER_ADDR],
+    tokens: vec![TokenIdU32(2), TokenIdU32(20), TokenIdU32(200)],
+    token_uris: vec![
+      "ipfs://test".to_string(),
+      "ipfs://test1".to_string(),
+      "ipfs://test2".to_string(),
+    ],
+  };
+
+  let update = mint_to_address(&mut chain, contract_address, mint_params, None, None)
+    .expect_err("Call didnt fail");
+
+  let rv: ContractError = update
+    .parse_return_value()
+    .expect("ContractError return value");
+  assert_eq!(
+    rv,
+    Cis2Error::Custom(CustomContractError::ArraysNotSameLength)
+  );
 }
 
 #[concordium_test]
@@ -305,7 +331,7 @@ fn test_mint_should_fail_when_not_minter() {
       Energy::from(10000),
       UpdateContractPayload {
         amount: Amount::zero(),
-        receive_name: OwnedReceiveName::new_unchecked("test_nft.mint".to_string()),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.mint".to_string()),
         address: contract_address,
         message: OwnedParameter::from_serial(&c_mint_params(2)).expect("Mint params"),
       },
@@ -339,7 +365,7 @@ fn test_owner_should_be_able_to_set_minter() {
     Energy::from(10000),
     UpdateContractPayload {
       amount: Amount::zero(),
-      receive_name: OwnedReceiveName::new_unchecked("test_nft.setMinter".to_string()),
+      receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.setMinter".to_string()),
       address: contract_address,
       message: OwnedParameter::from_serial(&new_minter_params).expect("Minter params"),
     },

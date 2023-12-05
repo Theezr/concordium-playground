@@ -28,7 +28,7 @@ impl From<Vec<MintCountTokenID>> for TokenMintCountQueryResponse {
 }
 
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "getMintCountTokenID",
   parameter = "ContractMintCountQueryParams",
   return_value = "TokenMintCountQueryResponse",
@@ -72,7 +72,7 @@ pub struct ViewSettings {
 }
 
 #[receive(
-  contract = "test_nft",
+  contract = "ciphers_nft",
   name = "viewSettings",
   return_value = "ViewSettings"
 )]
