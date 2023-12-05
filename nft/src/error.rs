@@ -25,6 +25,8 @@ pub enum CustomContractError {
   ArraysNotSameLength,
   /// Error returned by the CIS2 Client while performing certain operations
   Cis2ClientError,
+  /// Not a valid address
+  InvalidAddress,
 }
 
 /// Wrapping the custom errors in a type with CIS2 errors.

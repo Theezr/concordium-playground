@@ -123,6 +123,31 @@ pub fn get_view_state(chain: &Chain, contract_address: ContractAddress) -> ViewS
   invoke.parse_return_value().expect("ViewState return value")
 }
 
+pub fn get_view_address(
+  chain: &Chain,
+  contract_address: ContractAddress,
+  address: Address,
+) -> ViewAddress {
+  let invoke = chain
+    .contract_invoke(
+      USER,
+      USER_ADDR,
+      Energy::from(10000),
+      UpdateContractPayload {
+        amount: Amount::zero(),
+        receive_name: OwnedReceiveName::new_unchecked("ciphers_nft.viewAddress".to_string()),
+        address: contract_address,
+        message: OwnedParameter::from_serial(&ContractViewAddressQueryParams { address })
+          .expect("ViewAddress params"),
+      },
+    )
+    .expect("Invoke view");
+
+  invoke
+    .parse_return_value()
+    .expect("ViewAddress return value")
+}
+
 #[allow(unused)]
 pub fn get_view_settings(chain: &Chain, contract_address: ContractAddress) -> ViewSettings {
   let invoke = chain

@@ -389,3 +389,30 @@ fn test_owner_should_be_able_to_set_minter() {
   let contract_settings = get_view_settings(&chain, contract_address);
   assert_eq!(contract_settings.minter, new_minter_params.minter);
 }
+
+#[concordium_test]
+fn test_view_address() {
+  let chain_timestamp = MINT_START + 1;
+  let (mut chain, contract_address) = initialize_chain_and_contract(chain_timestamp);
+
+  let mint_params = MintParams {
+    owners: vec![USER_ADDR, USER_ADDR, USER3_ADDR],
+    tokens: vec![TokenIdU32(2), TokenIdU32(20), TokenIdU32(200)],
+    token_uris: vec![
+      "ipfs://test".to_string(),
+      "ipfs://test1".to_string(),
+      "ipfs://test2".to_string(),
+    ],
+  };
+  mint_to_address(&mut chain, contract_address, mint_params, None, None).expect("Mint failed");
+
+  let address: ViewAddress = get_view_address(&chain, contract_address, USER_ADDR);
+
+  assert_eq!(
+    address,
+    ViewAddress {
+      owned_tokens: vec![TokenIdU32(2), TokenIdU32(20)],
+      operators: Vec::new(),
+    },
+  );
+}

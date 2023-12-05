@@ -3,7 +3,7 @@ use concordium_std::*;
 
 use crate::{
   cis2::{ContractTokenId, MintCountTokenID},
-  error::{ContractError, ContractResult},
+  error::{ContractError, ContractResult, CustomContractError},
   state::State,
 };
 
@@ -90,5 +90,39 @@ fn contract_view_settings(
     mint_start: state.mint_start,
     mint_deadline: state.mint_deadline,
     max_total_supply: state.max_total_supply,
+  })
+}
+
+#[derive(Serialize, SchemaType, PartialEq, Eq, Debug)]
+pub struct ViewAddress {
+  pub owned_tokens: Vec<ContractTokenId>,
+  pub operators: Vec<Address>,
+}
+
+#[derive(Debug, Serialize, SchemaType)]
+#[concordium(transparent)]
+pub struct ContractViewAddressQueryParams {
+  pub address: Address,
+}
+
+#[receive(
+  contract = "ciphers_nft",
+  name = "viewAddress",
+  return_value = "ViewAddress"
+)]
+fn contract_view_address(ctx: &ReceiveContext, host: &Host<State>) -> ReceiveResult<ViewAddress> {
+  let state = host.state();
+  let address = ctx.sender();
+  let a_state = state
+    .address_state
+    .get(&address)
+    .ok_or(CustomContractError::InvalidAddress)?;
+
+  let owned_tokens = a_state.owned_tokens.iter().map(|x| *x).collect();
+  let operators = a_state.operators.iter().map(|x| *x).collect();
+
+  Ok(ViewAddress {
+    owned_tokens,
+    operators,
   })
 }
