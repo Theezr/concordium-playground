@@ -3,64 +3,15 @@ use anyhow::Context;
 use concordium_rust_sdk::{
   common::deserial_bytes,
   smart_contracts::common::Serialize,
-  types::{AbsoluteBlockHeight, BlockItemSummaryDetails, ContractAddress},
+  types::{
+    smart_contracts::ContractEvent, AbsoluteBlockHeight, BlockItemSummaryDetails, ContractAddress,
+    InstanceUpdatedEvent,
+  },
   v2::{self, Endpoint},
 };
 use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
-
-#[derive(Debug, Deserialize)]
-struct Amount {
-  micro_ccd: u64,
-}
-
-#[derive(Debug, Deserialize)]
-struct AccountAddress(Vec<u8>);
-
-#[derive(Debug, Deserialize)]
-struct ContractEvent {
-  bytes: Vec<u8>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OwnedParameter(Vec<u8>);
-
-#[derive(Debug, Deserialize)]
-struct OwnedReceiveName(String);
-
-#[derive(Debug, Deserialize)]
-struct InstanceUpdatedEvent {
-  contract_version: String,
-  address: ContractAddress,
-  instigator: AccountAddress,
-  amount: Amount,
-  message: OwnedParameter,
-  receive_name: OwnedReceiveName,
-  events: Vec<ContractEvent>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Updated {
-  data: InstanceUpdatedEvent,
-}
-
-#[derive(Debug, Deserialize)]
-struct ContractUpdateIssued {
-  effects: Vec<Updated>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AccountTransactionDetails {
-  cost: Amount,
-  sender: AccountAddress,
-  effects: ContractUpdateIssued,
-}
-
-#[derive(Debug, Deserialize)]
-struct AccountTransaction {
-  details: AccountTransactionDetails,
-}
 
 struct App {
   endpoint: v2::Endpoint,
@@ -96,18 +47,29 @@ async fn main() -> anyhow::Result<()> {
           .affected_contracts()
           .contains(&ContractAddress::new(7418, 0))
         {
-          let details_value = event.details.clone();
+          let details_value: BlockItemSummaryDetails = event.details.clone();
+          // Extract ContractEvents from AccountTransaction
+          let contract_events = extract_contract_events(&details_value);
 
-          println!("Event {:?}", event.details.clone());
+          println!("Event {:?}", details_value);
 
-          println!(
-            "Transaction {} with sender {}.",
-            &event.hash,
-            event.sender_account().unwrap()
-          );
+          // println!(
+          //   "Transaction {} with sender {}.",
+          //   &event.hash,
+          //   event.sender_account().unwrap()
+          // );
         }
       }
     }
   }
   Ok(())
+}
+
+fn extract_contract_events(account_transaction: &BlockItemSummaryDetails) -> Vec<ContractEvent> {
+  if let InstanceUpdatedEvent { events, .. } = &account_transaction.details.effects {
+    // Access the events field within InstanceUpdatedEvent
+    return events.clone();
+  }
+  // Return an empty vector if the structure doesn't match the expected pattern
+  vec![]
 }
