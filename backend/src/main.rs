@@ -1,17 +1,23 @@
 //! Test the `GetBlockTransactionEvents` endpoint.
 use anyhow::Context;
 use concordium_rust_sdk::{
-  common::deserial_bytes,
-  smart_contracts::common::Serialize,
+  smart_contracts::common::{Deserial, ParseError, Read, AccountAddress},
   types::{
     smart_contracts::ContractEvent, AbsoluteBlockHeight, BlockItemSummaryDetails, ContractAddress,
-    InstanceUpdatedEvent,
+    InstanceUpdatedEvent, ContractTraceElement, AccountTransactionEffects, Address,
   },
-  v2::{self, Endpoint},
+  v2::{self, Endpoint}, contract_client::MetadataUrl, common::{ParseResult, deserial_bytes}, cis2::{TokenId, TokenAmount},
 };
 use futures::StreamExt;
 use serde::Deserialize;
-use serde_json::Value;
+use hex; 
+
+#[derive(Deserialize, Debug)]
+pub struct MintEvent {
+  pub token_id: u32,
+  pub amount: u64,
+  pub owner: AccountAddress,
+}
 
 struct App {
   endpoint: v2::Endpoint,
@@ -46,12 +52,27 @@ async fn main() -> anyhow::Result<()> {
         if event
           .affected_contracts()
           .contains(&ContractAddress::new(7418, 0))
+          
         {
-          let details_value: BlockItemSummaryDetails = event.details.clone();
-          // Extract ContractEvents from AccountTransaction
-          let contract_events = extract_contract_events(&details_value);
+          let events: Vec<ContractEvent> = event.contract_update_logs().unwrap().flat_map(|(_, events)| events).cloned().collect();
+          
+          println!("EVENTS \n {:?}", events);
 
-          println!("Event {:?}", details_value);
+          for event in events {
+            println!("EVENT \n {}", event.to_string());
+
+
+        match deserialize_event(&event) {
+          Ok(mint_event) => {
+              println!("MINT EVENT \n {:?}", mint_event);
+          }
+          Err(e) => {
+              eprintln!("Failed to deserialize event: {:?}", e);
+          }
+      }
+        }
+
+        
 
           // println!(
           //   "Transaction {} with sender {}.",
@@ -65,11 +86,7 @@ async fn main() -> anyhow::Result<()> {
   Ok(())
 }
 
-fn extract_contract_events(account_transaction: &BlockItemSummaryDetails) -> Vec<ContractEvent> {
-  if let InstanceUpdatedEvent { events, .. } = &account_transaction.details.effects {
-    // Access the events field within InstanceUpdatedEvent
-    return events.clone();
-  }
-  // Return an empty vector if the structure doesn't match the expected pattern
-  vec![]
+fn deserialize_event(hex_str: &str) -> Result<MintEvent, bincode::Error> {
+  let bytes = hex::decode(hex_str).expect("Failed to decode hex string");
+  bincode::deserialize(&bytes)
 }
