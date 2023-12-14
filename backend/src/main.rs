@@ -1,22 +1,37 @@
 //! Test the `GetBlockTransactionEvents` endpoint.
 use anyhow::Context;
 use concordium_rust_sdk::{
-  smart_contracts::common::{Deserial, ParseError, Read, AccountAddress},
+  cis2::{TokenAmount, TokenId},
+  contract_client::MetadataUrl,
+  smart_contracts::common::{AccountAddress, Cursor, Get, ParseError, ParseResult, Read},
+  types::smart_contracts::concordium_contracts_common::Deserial,
   types::{
-    smart_contracts::ContractEvent, AbsoluteBlockHeight, BlockItemSummaryDetails, ContractAddress,
-    InstanceUpdatedEvent, ContractTraceElement, AccountTransactionEffects, Address,
+    smart_contracts::ContractEvent, AbsoluteBlockHeight, AccountTransactionEffects, Address,
+    BlockItemSummaryDetails, ContractAddress, ContractTraceElement, InstanceUpdatedEvent,
   },
-  v2::{self, Endpoint}, contract_client::MetadataUrl, common::{ParseResult, deserial_bytes}, cis2::{TokenId, TokenAmount},
+  v2::{self, Endpoint},
 };
 use futures::StreamExt;
+use hex;
 use serde::Deserialize;
-use hex; 
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug)]
 pub struct MintEvent {
-  pub token_id: u32,
-  pub amount: u64,
-  pub owner: AccountAddress,
+  pub token_id: TokenId,
+  pub amount: TokenAmount,
+  // pub owner: AccountAddress,
+}
+
+impl Deserial for MintEvent {
+  fn deserial<R: Read>(source: &mut R) -> ParseResult<Self> {
+    let token_id: TokenId = source.get()?;
+    let amount: TokenAmount = source.get()?;
+
+    println!("token_id: {:?}", token_id);
+    println!("amount: {:?}", amount);
+
+    Ok(MintEvent { token_id, amount })
+  }
 }
 
 struct App {
@@ -52,27 +67,22 @@ async fn main() -> anyhow::Result<()> {
         if event
           .affected_contracts()
           .contains(&ContractAddress::new(7418, 0))
-          
         {
-          let events: Vec<ContractEvent> = event.contract_update_logs().unwrap().flat_map(|(_, events)| events).cloned().collect();
-          
+          let events: Vec<ContractEvent> = event
+            .contract_update_logs()
+            .unwrap()
+            .flat_map(|(_, events)| events)
+            .skip(1)
+            .cloned()
+            .collect();
+
           println!("EVENTS \n {:?}", events);
 
           for event in events {
             println!("EVENT \n {}", event.to_string());
-
-
-        match deserialize_event(&event) {
-          Ok(mint_event) => {
-              println!("MINT EVENT \n {:?}", mint_event);
+            let test: MintEvent = event.parse()?;
+            println!("{:?}", test);
           }
-          Err(e) => {
-              eprintln!("Failed to deserialize event: {:?}", e);
-          }
-      }
-        }
-
-        
 
           // println!(
           //   "Transaction {} with sender {}.",
@@ -84,9 +94,4 @@ async fn main() -> anyhow::Result<()> {
     }
   }
   Ok(())
-}
-
-fn deserialize_event(hex_str: &str) -> Result<MintEvent, bincode::Error> {
-  let bytes = hex::decode(hex_str).expect("Failed to decode hex string");
-  bincode::deserialize(&bytes)
 }
