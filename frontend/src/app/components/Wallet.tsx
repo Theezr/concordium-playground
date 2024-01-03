@@ -1,6 +1,6 @@
 // 'use client';
 import { useState } from 'react';
-import { connectToWallet } from './components/CcdClient';
+import { connectToWallet } from './CcdClient';
 
 export default function Wallet() {
   const [account, setAccount] = useState('');

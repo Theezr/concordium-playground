@@ -1,7 +1,7 @@
 'use client';
 import Image from 'next/image';
 import styles from './page.module.css';
-import Wallet from './Wallet';
+import Wallet from './components/Wallet';
 
 export default function Home() {
   return (
